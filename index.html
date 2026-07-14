@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Prismatic Transit v16</title>
+<title>Prismatic Transit v17</title>
 <style>
   :root {
     color-scheme: dark;
@@ -689,6 +689,12 @@
     floorY: 0,
     size: 0
   };
+
+  const CAT_SPRITE_COLS = 6;
+  const CAT_SPRITE_ROWS = 5;
+  const catSpriteSheet = new Image();
+  catSpriteSheet.src = "cat_sprite_sheet.png";
+  catSpriteSheet.decoding = "async";
 
   const meteor = {
     phase: "idle",
@@ -2607,7 +2613,7 @@
 
 
   function triggerCatVisitor() {
-    const size = Math.min(width, height) * 0.18;
+    const size = Math.min(width, height) * 0.20;
 
     catVisitor.active = true;
     catVisitor.time = 0;
@@ -2654,350 +2660,145 @@
     if (!catVisitor.active) {
       return {
         active: false,
-        pose: "idle",
+        row: 0,
+        frame: 0,
         x: 0,
         y: 0,
-        facing: 1,
-        progress: 0,
-        headLift: 0,
-        sleep: 0
+        size: 0,
+        shadow: false
       };
     }
 
-    const size = catVisitor.size || Math.min(width, height) * 0.18;
-    const offscreenY = height + size * 1.15;
-    const floorY = catVisitor.floorY || (height - size * 0.14);
+    const size = catVisitor.size || Math.min(width, height) * 0.20;
+    const offscreenY = height + size * 0.95;
+    const floorY = catVisitor.floorY || (height - size * 0.05);
     const t = catVisitor.time;
 
-    if (t < 2.3) {
-      const p = easeOutCubic(t / 2.3);
-      return {
-        active: true,
-        pose: "climb",
-        x: catVisitor.startX,
-        y: lerp(offscreenY, floorY, p),
-        facing: 1,
-        progress: p,
-        headLift: .18,
-        sleep: 0
-      };
-    }
-
-    if (t < 4.7) {
-      const p = easeInOutSine((t - 2.3) / 2.4);
-      return {
-        active: true,
-        pose: "stand",
-        x: catVisitor.startX,
-        y: floorY,
-        facing: 1,
-        progress: p,
-        headLift: .34 + Math.sin(elapsed * 1.3) * .05,
-        sleep: 0
-      };
-    }
-
-    if (t < 7.1) {
-      const p = easeInOutSine((t - 4.7) / 2.4);
-      return {
-        active: true,
-        pose: "walk",
-        x: lerp(catVisitor.startX, catVisitor.sitX, p),
-        y: floorY,
-        facing: 1,
-        progress: p,
-        headLift: .16,
-        sleep: 0
-      };
-    }
-
-    if (t < 11.7) {
-      const p = easeInOutSine((t - 7.1) / 4.6);
-      return {
-        active: true,
-        pose: "sit",
-        x: catVisitor.sitX,
-        y: floorY,
-        facing: 1,
-        progress: p,
-        headLift: .26 + Math.sin(elapsed * .8) * .03,
-        sleep: 0
-      };
-    }
-
-    if (t < 14.8) {
-      const p = easeInOutSine((t - 11.7) / 3.1);
-      return {
-        active: true,
-        pose: "lick",
-        x: catVisitor.sitX,
-        y: floorY,
-        facing: 1,
-        progress: p,
-        headLift: .12,
-        sleep: 0
-      };
-    }
-
-    if (t < 19.6) {
-      const p = easeInOutSine((t - 14.8) / 4.8);
-      return {
-        active: true,
-        pose: "sleep",
-        x: catVisitor.sitX,
-        y: floorY,
-        facing: 1,
-        progress: p,
-        headLift: 0,
-        sleep: p,
-        sleepBreath: Math.sin(elapsed * 1.7) * .06
-      };
-    }
-
-    if (t < 22.6) {
-      const p = easeInOutSine((t - 19.6) / 3.0);
-      return {
-        active: true,
-        pose: "walk",
-        x: lerp(catVisitor.sitX, catVisitor.exitX, p),
-        y: floorY,
-        facing: 1,
-        progress: p + 1.0,
-        headLift: .12,
-        sleep: 0
-      };
-    }
-
-    const p = easeInOutSine((t - 22.6) / 2.4);
-    return {
+    const makeStage = (row, frame, x, y, shadow = true) => ({
       active: true,
-      pose: "climb",
-      x: catVisitor.exitX,
-      y: lerp(floorY, offscreenY, p),
-      facing: 1,
-      progress: 1 - p,
-      headLift: -.10,
-      sleep: 0
-    };
+      row,
+      frame: clamp(Math.round(frame), 0, CAT_SPRITE_COLS - 1),
+      x,
+      y,
+      size,
+      shadow
+    });
+
+    if (t < 2.4) {
+      const p = easeOutCubic(t / 2.4);
+      return makeStage(
+        0,
+        p * 5,
+        catVisitor.startX,
+        lerp(offscreenY, floorY, p),
+        false
+      );
+    }
+
+    if (t < 4.8) {
+      const p = easeInOutSine((t - 2.4) / 2.4);
+      return makeStage(
+        1,
+        p * 5,
+        lerp(catVisitor.startX, catVisitor.sitX, p),
+        floorY,
+        true
+      );
+    }
+
+    if (t < 9.4) {
+      const p = (t - 4.8) / 4.6;
+      const watchFrames = [0, 1, 2, 3, 4, 5, 4, 3];
+      const idx = Math.min(
+        watchFrames.length - 1,
+        Math.floor(p * watchFrames.length)
+      );
+      return makeStage(2, watchFrames[idx], catVisitor.sitX, floorY, true);
+    }
+
+    if (t < 12.6) {
+      const p = (t - 9.4) / 3.2;
+      return makeStage(3, p * 5, catVisitor.sitX, floorY, true);
+    }
+
+    if (t < 14.9) {
+      const p = (t - 12.6) / 2.3;
+      return makeStage(4, p * 5, catVisitor.sitX, floorY, true);
+    }
+
+    if (t < 18.7) {
+      const p = (t - 14.9) / 3.8;
+      const sleepFrames = [4, 5, 5, 4, 5, 5, 4, 5];
+      const idx = Math.min(
+        sleepFrames.length - 1,
+        Math.floor(p * sleepFrames.length)
+      );
+      return makeStage(4, sleepFrames[idx], catVisitor.sitX, floorY, true);
+    }
+
+    if (t < 20.4) {
+      const p = easeInOutSine((t - 18.7) / 1.7);
+      return makeStage(4, 5 - p * 5, catVisitor.sitX, floorY, true);
+    }
+
+    if (t < 22.8) {
+      const p = easeInOutSine((t - 20.4) / 2.4);
+      return makeStage(
+        1,
+        5 - p * 5,
+        lerp(catVisitor.sitX, catVisitor.exitX, p),
+        floorY,
+        true
+      );
+    }
+
+    const p = easeInOutSine((t - 22.8) / 2.2);
+    return makeStage(
+      0,
+      5 - p * 5,
+      catVisitor.exitX,
+      lerp(floorY, offscreenY, p),
+      false
+    );
   }
 
-  function drawCatSilhouette(stage) {
+  function drawCatSprite(stage) {
     if (!stage.active) return;
+    if (!catSpriteSheet.complete || !catSpriteSheet.naturalWidth) return;
 
-    const size = catVisitor.size || Math.min(width, height) * 0.18;
-    const sway = Math.sin(elapsed * 1.2) * size * 0.006;
-    const bodyBreathe = 1 + Math.sin(elapsed * 1.8) * 0.012;
+    const frameW = catSpriteSheet.naturalWidth / CAT_SPRITE_COLS;
+    const frameH = catSpriteSheet.naturalHeight / CAT_SPRITE_ROWS;
+    const sx = Math.round(stage.frame) * frameW;
+    const sy = stage.row * frameH;
 
-    ctx.save();
-    ctx.translate(stage.x, stage.y + sway);
-    ctx.scale(stage.facing, 1);
-
-    ctx.fillStyle = "rgba(0,0,0,0.96)";
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.lineWidth = Math.max(1, size * 0.012);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.shadowColor = "rgba(80,130,255,0.10)";
-    ctx.shadowBlur = size * 0.08;
-
-    const pose = stage.pose;
-    const walkCycle = Math.sin((stage.progress || 0) * Math.PI * 4);
-    const sitBody = pose === "sit" || pose === "lick" || pose === "sleep";
-    const climbBody = pose === "climb";
-    const sleepBody = pose === "sleep";
-
-    // Body
-    ctx.beginPath();
-    if (climbBody) {
-      ctx.ellipse(
-        -size * 0.04,
-        -size * 0.58,
-        size * 0.17,
-        size * 0.37,
-        0.16,
-        0,
-        TAU
-      );
-    } else if (sleepBody) {
-      ctx.ellipse(
-        -size * 0.05,
-        -size * 0.27,
-        size * 0.30 * bodyBreathe,
-        size * 0.21,
-        0.18,
-        0,
-        TAU
-      );
-    } else if (sitBody) {
-      ctx.ellipse(
-        -size * 0.08,
-        -size * 0.33,
-        size * 0.27,
-        size * 0.24,
-        0.12,
-        0,
-        TAU
-      );
-      ctx.ellipse(
-        size * 0.10,
-        -size * 0.28,
-        size * 0.20,
-        size * 0.16,
-        0.10,
-        0,
-        TAU
-      );
-    } else {
-      ctx.ellipse(
-        0,
-        -size * 0.34,
-        size * 0.36,
-        size * 0.19,
-        0.02,
-        0,
-        TAU
-      );
-    }
-    ctx.fill();
-
-    // Head
-    const headX =
-      pose === "lick"
-        ? size * 0.24
-        : pose === "sleep"
-          ? size * 0.22
-          : size * 0.33;
-
-    const headY =
-      pose === "sleep"
-        ? -size * 0.30
-        : pose === "climb"
-          ? -size * 0.96
-          : pose === "lick"
-            ? -size * 0.48
-            : -size * 0.56 - size * 0.03 * (stage.headLift || 0);
-
-    const headAngle =
-      pose === "lick"
-        ? -0.55
-        : pose === "sleep"
-          ? 0.58
-          : pose === "climb"
-            ? -0.14
-            : -0.10 + state.steerX * 0.05;
+    const drawH = stage.size;
+    const drawW = drawH * (frameW / frameH);
+    const dx = stage.x - drawW * 0.5;
+    const dy = stage.y - drawH;
 
     ctx.save();
-    ctx.translate(headX, headY);
-    ctx.rotate(headAngle);
-    ctx.beginPath();
-    ctx.arc(0, 0, size * 0.15, 0, TAU);
-    ctx.fill();
 
-    // Ears
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.09, -size * 0.10);
-    ctx.lineTo(-size * 0.03, -size * 0.22);
-    ctx.lineTo(size * 0.01, -size * 0.08);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(size * 0.02, -size * 0.08);
-    ctx.lineTo(size * 0.08, -size * 0.21);
-    ctx.lineTo(size * 0.10, -size * 0.05);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    // Legs
-    const legBaseY = climbBody ? -size * 0.22 : -size * 0.03;
-
-    if (climbBody) {
-      for (const x of [-.11, .02, .12, .24]) {
-        ctx.beginPath();
-        ctx.moveTo(size * x, legBaseY);
-        ctx.lineTo(size * (x + .02), size * 0.18);
-        ctx.lineWidth = size * 0.06;
-        ctx.stroke();
-      }
-    } else if (sitBody) {
-      ctx.beginPath();
-      ctx.moveTo(size * 0.05, -size * 0.22);
-      ctx.lineTo(size * 0.10, -size * 0.02);
-      ctx.lineWidth = size * 0.055;
-      ctx.stroke();
-
-      if (pose === "lick") {
-        const lickLift = Math.sin((stage.progress || 0) * Math.PI * 4) * size * 0.03;
-        ctx.beginPath();
-        ctx.moveTo(size * 0.15, -size * 0.28);
-        ctx.lineTo(size * 0.28, -size * 0.42 + lickLift);
-        ctx.lineWidth = size * 0.048;
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(size * 0.16, -size * 0.18);
-        ctx.lineTo(size * 0.22, -size * 0.02);
-        ctx.lineWidth = size * 0.048;
-        ctx.stroke();
-      }
-
-      ctx.beginPath();
-      ctx.moveTo(-size * 0.15, -size * 0.15);
-      ctx.quadraticCurveTo(-size * 0.28, -size * 0.03, -size * 0.20, 0);
-      ctx.lineWidth = size * 0.075;
-      ctx.stroke();
-    } else {
-      const legs = [-0.21, -0.05, 0.11, 0.26];
-      legs.forEach((x, i) => {
-        const phase = walkCycle * (i % 2 === 0 ? 1 : -1);
-        const lift = pose === "walk" ? phase * size * 0.06 : 0;
-        ctx.beginPath();
-        ctx.moveTo(size * x, -size * 0.16);
-        ctx.lineTo(size * x + size * 0.02 * phase, size * 0.01 - Math.max(0, lift));
-        ctx.lineWidth = size * 0.05;
-        ctx.stroke();
-      });
-    }
-
-    // Tail
-    ctx.beginPath();
-    if (pose === "sleep") {
-      ctx.moveTo(-size * 0.27, -size * 0.22);
-      ctx.quadraticCurveTo(-size * 0.38, -size * 0.05, -size * 0.12, -size * 0.02);
-    } else if (sitBody) {
-      ctx.moveTo(-size * 0.27, -size * 0.22);
-      ctx.quadraticCurveTo(-size * 0.42, -size * 0.44, -size * 0.28, -size * 0.60);
-    } else if (climbBody) {
-      ctx.moveTo(-size * 0.10, -size * 0.28);
-      ctx.quadraticCurveTo(-size * 0.28, -size * 0.10, -size * 0.20, size * 0.18);
-    } else {
-      const wag = Math.sin(elapsed * 2.2 + (stage.progress || 0) * 4) * size * 0.04;
-      ctx.moveTo(-size * 0.32, -size * 0.30);
-      ctx.quadraticCurveTo(-size * 0.52, -size * 0.48 + wag, -size * 0.42, -size * 0.68 + wag);
-    }
-    ctx.lineWidth = size * 0.06;
-    ctx.stroke();
-
-    // Sleep posture subtly lowers the body.
-    if (sleepBody) {
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = "rgba(255,255,255,0.05)";
+    if (stage.shadow) {
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
       ctx.beginPath();
       ctx.ellipse(
-        0,
-        size * 0.05,
-        size * 0.28,
-        size * 0.05,
+        stage.x,
+        stage.y - drawH * 0.04,
+        drawW * 0.16,
+        drawH * 0.04,
         0,
         0,
         TAU
       );
       ctx.fill();
-      ctx.restore();
     }
 
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(
+      catSpriteSheet,
+      sx, sy, frameW, frameH,
+      dx, dy, drawW, drawH
+    );
     ctx.restore();
   }
 
@@ -3753,7 +3554,7 @@
 
     drawReverseWash();
     renderPortrait(width / 2, height / 2);
-    drawCatSilhouette(catStage());
+    drawCatSprite(catStage());
     drawVignette();
 
     ctx.restore();
