@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Prismatic Transit v12</title>
+<title>Prismatic Transit v13</title>
 <style>
   :root {
     color-scheme: dark;
@@ -33,6 +33,16 @@
     width: 100%;
     height: 100%;
     background: #000;
+  }
+
+  #impactLayer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    pointer-events: none;
   }
   #ui { position: fixed; inset: 0; pointer-events: none; }
   #sidebar {
@@ -375,6 +385,8 @@
         <label class="toggle"><input id="prismToggle" type="checkbox"> Prismatic echo</label>
         <label class="toggle"><input id="reverseToggle" type="checkbox"> Reverse transit</label>
         <label class="toggle"><input id="memoryToggle" type="checkbox"> Glitch memory</label>
+        <label class="toggle"><input id="auroraToggle" type="checkbox"> Aurora current</label>
+        <label class="toggle"><input id="echoToggle" type="checkbox"> Phase echo</label>
       </div>
     </section>
 
@@ -436,6 +448,7 @@
     </div>
   </div>
 </div>
+<canvas id="impactLayer" aria-hidden="true"></canvas>
 
 <script>
 (() => {
@@ -445,6 +458,10 @@
 
   const canvas = document.getElementById("scene");
   const ctx = canvas.getContext("2d", { alpha: false });
+  const impactLayer = document.getElementById("impactLayer");
+  const impactCtx = impactLayer.getContext("2d", { alpha: true });
+  const shatterCanvas = document.createElement("canvas");
+  const shatterCtx = shatterCanvas.getContext("2d", { alpha: true });
   const starSurfAudio = document.getElementById("starSurfAudio");
   const trailCanvas = document.createElement("canvas");
   const trailCtx = trailCanvas.getContext("2d", { alpha: true });
@@ -523,7 +540,9 @@
     gravity: false,
     prism: false,
     reverse: false,
-    memory: false
+    memory: false,
+    aurora: false,
+    echo: false
   };
 
   const state = {
@@ -536,6 +555,8 @@
     gravity: 0,
     prism: 0,
     reverse: 0,
+    aurora: 0,
+    echo: 0,
     effectiveSpeed: 1,
     portraitReveal: 0
   };
@@ -563,7 +584,9 @@
       gravity: false,
       prism: false,
       reverse: false,
-      memory: false
+      memory: false,
+      aurora: false,
+      echo: false
     }
   };
 
@@ -602,7 +625,41 @@
     barCount: 0,
     phraseCount: 0,
     estimatedBeatInterval: 0.42,
-    lastDetectedBeatTime: 0
+    lastDetectedBeatTime: 0,
+
+    slowEnergy: 0,
+    energyTrend: 0,
+    sectionCooldown: 0,
+    lastSectionType: "",
+    styleNumber: 0
+  };
+
+  const KONAMI_SEQUENCE = [
+    "ArrowUp", "ArrowUp",
+    "ArrowDown", "ArrowDown",
+    "ArrowLeft", "ArrowRight",
+    "ArrowLeft", "ArrowRight",
+    "KeyA", "KeyB", "Enter"
+  ];
+
+  let konamiProgress = 0;
+
+  const meteor = {
+    phase: "idle",
+    phaseTime: 0,
+    approachDuration: 6.2,
+    startX: 0,
+    startY: 0,
+    impactX: 0,
+    impactY: 0,
+    rotation: 0,
+    spin: 0,
+    rockRadii: [],
+    cracks: [],
+    branches: [],
+    shards: [],
+    flash: 0,
+    shake: 0
   };
 
   const inputs = {
@@ -628,6 +685,8 @@
     prismToggle: document.getElementById("prismToggle"),
     reverseToggle: document.getElementById("reverseToggle"),
     memoryToggle: document.getElementById("memoryToggle"),
+    auroraToggle: document.getElementById("auroraToggle"),
+    echoToggle: document.getElementById("echoToggle"),
 
     presetName: document.getElementById("presetName"),
     presetSelect: document.getElementById("presetSelect"),
@@ -653,7 +712,9 @@
       gravity: "gravityToggle",
       prism: "prismToggle",
       reverse: "reverseToggle",
-      memory: "memoryToggle"
+      memory: "memoryToggle",
+      aurora: "auroraToggle",
+      echo: "echoToggle"
     };
     const id = map[key];
     if (!id || !inputs[id]) return;
@@ -978,29 +1039,119 @@
   });
 
   function chooseStarSurfTargets(strength = music.energy) {
-    const drive = clamp(strength * 1.65 + music.low * 0.35, 0, 1);
-    const shimmer = clamp(music.high * 1.95, 0, 1);
+    const drive = clamp(strength * 1.45 + music.low * 0.30, 0, 1);
+    const shimmer = clamp(music.high * 1.80, 0, 1);
 
-    starSurf.targets.speed = 0.62 + drive * 1.72;
-    starSurf.targets.spinSpeed = 0.20 + Math.pow(Math.random(), 5.4) * 2.80;
-    starSurf.targets.density = Math.round(560 + drive * 720 + shimmer * 260);
-    starSurf.targets.trail = 0.70 + drive * 1.70;
-    starSurf.targets.chroma = 0.42 + shimmer * 1.16;
-    starSurf.targets.veils = 0.32 + clamp(music.mid * 1.55, 0, 1) * 1.12;
-    starSurf.targets.decay = 0.006 + (1 - drive) * 0.035;
+    // These become stable targets for a whole musical phrase.
+    starSurf.targets.speed = 0.58 + drive * 1.62;
+    starSurf.targets.spinSpeed = 0.20 + Math.pow(Math.random(), 5.8) * 2.80;
+    starSurf.targets.density = Math.round(540 + drive * 700 + shimmer * 260);
+    starSurf.targets.trail = 0.68 + drive * 1.62;
+    starSurf.targets.chroma = 0.38 + shimmer * 1.18;
+    starSurf.targets.veils = 0.26 + clamp(music.mid * 1.55, 0, 1) * 1.10;
+    starSurf.targets.decay = 0.007 + (1 - drive) * 0.034;
 
-    // Maximum-speed corkscrews remain exceptionally rare.
-    starSurf.toggles.spin = drive > 0.52 && Math.random() < 0.16;
-    starSurf.toggles.gravity = music.low > 0.28 && Math.random() < 0.34;
-    starSurf.toggles.prism = shimmer > 0.28 && Math.random() < 0.46;
-    starSurf.toggles.reverse = drive > 0.76 && Math.random() < 0.035;
-    starSurf.toggles.memory = music.mid > 0.24 && Math.random() < 0.30;
-    starSurf.toggles.brake = drive < 0.18 && Math.random() < 0.24;
+    starSurf.toggles.spin = drive > 0.62 && Math.random() < 0.11;
+    starSurf.toggles.gravity = music.low > 0.30 && Math.random() < 0.30;
+    starSurf.toggles.prism = shimmer > 0.27 && Math.random() < 0.43;
+    starSurf.toggles.reverse = drive > 0.78 && Math.random() < 0.025;
+    starSurf.toggles.memory = music.mid > 0.25 && Math.random() < 0.28;
+    starSurf.toggles.brake = false;
+    starSurf.toggles.aurora = Math.random() < 0.44;
+    starSurf.toggles.echo = music.high > 0.22 && Math.random() < 0.34;
 
     starSurf.targetSteerX = randomBetween(-0.96, 0.96);
+    starSurf.targetSteerY = randomBetween(-0.76, 0.76);
+    starSurf.steerHoldX = randomBetween(-0.15, 0.15);
+    starSurf.steerHoldY = randomBetween(-0.12, 0.12);
+  }
+
+  function applyBarStyle() {
+    const drive = clamp(music.energy * 1.48, 0, 1);
+    const colour = clamp(music.high * 1.9, 0, 1);
+
+    // A bar changes the treatment, not the flight velocity.
+    starSurf.targets.trail = clamp(
+      0.62 + drive * 1.62 + randomBetween(-0.18, 0.18),
+      0.35,
+      2.85
+    );
+    starSurf.targets.chroma = clamp(
+      0.30 + colour * 1.20 + randomBetween(-0.10, 0.10),
+      0,
+      1.60
+    );
+    starSurf.targets.veils = clamp(
+      0.22 + music.mid * 1.14 + randomBetween(-0.10, 0.10),
+      0,
+      1.50
+    );
+    starSurf.targets.decay = clamp(
+      0.009 + (1 - drive) * 0.032,
+      0.002,
+      0.060
+    );
+
+    starSurf.targetSteerX = randomBetween(-0.98, 0.98);
     starSurf.targetSteerY = randomBetween(-0.78, 0.78);
-    starSurf.steerHoldX = randomBetween(-0.16, 0.16);
-    starSurf.steerHoldY = randomBetween(-0.13, 0.13);
+
+    starSurf.toggles.gravity =
+      music.low > 0.30 && Math.random() < 0.32;
+    starSurf.toggles.prism =
+      music.high > 0.23 && Math.random() < 0.44;
+    starSurf.toggles.memory =
+      music.mid > 0.25 && Math.random() < 0.27;
+    starSurf.toggles.aurora =
+      Math.random() < (0.28 + music.mid * 0.32);
+    starSurf.toggles.echo =
+      music.high > 0.20 && Math.random() < 0.30;
+
+    // Spin changes only at a bar boundary and stays conservative.
+    starSurf.toggles.spin =
+      drive > 0.66 && Math.random() < 0.095;
+  }
+
+  function applyMusicSection(type) {
+    music.sectionCooldown = type === "phrase" ? 3.2 : 6.5;
+    music.lastSectionType = type;
+    music.styleNumber += 1;
+
+    if (type === "build") {
+      const lift = clamp(music.energy * 1.55, 0, 1);
+      starSurf.targets.speed = clamp(1.05 + lift * 1.10, 0.85, 2.30);
+      starSurf.targets.density = Math.round(760 + lift * 610);
+      starSurf.targets.trail = clamp(1.15 + lift * 1.25, 0.8, 2.85);
+      starSurf.targets.chroma = clamp(0.75 + music.high * 0.90, 0.5, 1.60);
+      starSurf.targets.veils = clamp(0.55 + music.mid * 0.75, 0.3, 1.50);
+      starSurf.toggles.brake = false;
+      starSurf.toggles.reverse = false;
+      starSurf.toggles.aurora = true;
+      starSurf.toggles.echo = music.high > 0.24;
+      starSurf.targetSteerX = randomBetween(-0.90, 0.90);
+      starSurf.targetSteerY = randomBetween(-0.66, 0.66);
+      return;
+    }
+
+    if (type === "drop") {
+      starSurf.targets.speed = clamp(0.38 + music.energy * 0.48, 0.30, 0.92);
+      starSurf.targets.density = Math.round(380 + music.energy * 350);
+      starSurf.targets.trail = clamp(0.46 + music.energy * 0.62, 0.35, 1.20);
+      starSurf.targets.chroma = clamp(0.14 + music.high * 0.62, 0.05, 0.90);
+      starSurf.targets.veils = clamp(0.18 + music.mid * 0.65, 0.05, 0.90);
+      starSurf.targets.spinSpeed = 0.24;
+      starSurf.toggles.spin = false;
+      starSurf.toggles.gravity = Math.random() < 0.18;
+      starSurf.toggles.prism = false;
+      starSurf.toggles.reverse = false;
+      starSurf.toggles.memory = Math.random() < 0.18;
+      starSurf.toggles.aurora = Math.random() < 0.22;
+      starSurf.toggles.echo = false;
+      starSurf.targetSteerX = randomBetween(-0.42, 0.42);
+      starSurf.targetSteerY = randomBetween(-0.32, 0.32);
+      return;
+    }
+
+    chooseStarSurfTargets(music.energy);
   }
 
   function registerMusicBeat(strength, bassStrength) {
@@ -1018,71 +1169,25 @@
 
     music.lastDetectedBeatTime = now;
     music.timeSinceBeat = 0;
-    music.beatCooldown = clamp(music.estimatedBeatInterval * 0.42, 0.16, 0.34);
+    music.beatCooldown = clamp(
+      music.estimatedBeatInterval * 0.42,
+      0.16,
+      0.34
+    );
     music.beatPulse = 1;
-    music.hitPulse = clamp(strength * 4.0, 0.35, 1);
-    music.bassPulse = clamp(bassStrength * 4.5, 0.25, 1);
+    music.hitPulse = clamp(strength * 3.1, 0.24, 1);
+    music.bassPulse = clamp(bassStrength * 3.6, 0.18, 1);
     music.beatCount += 1;
 
-    const drive = clamp(music.energy * 1.65 + music.hitPulse * 0.22, 0, 1);
-
-    // Every detected beat produces a visible but smooth response.
-    starSurf.targets.speed = clamp(
-      0.68 + drive * 1.65 + music.bassPulse * 0.20,
-      0.35,
-      2.48
-    );
-    starSurf.targets.trail = clamp(
-      0.72 + drive * 1.72 + music.hitPulse * 0.28,
-      0.35,
-      2.95
-    );
-    starSurf.targets.chroma = clamp(
-      0.38 + music.high * 1.55 + music.hitPulse * 0.22,
-      0,
-      1.6
-    );
-    starSurf.targets.veils = clamp(
-      0.26 + music.mid * 1.28 + music.hitPulse * 0.15,
-      0,
-      1.5
-    );
-
-    // Rhythmic steering impulse, still passed through smoothing.
-    starSurf.targetSteerX = clamp(
-      starSurf.targetSteerX + randomBetween(-0.18, 0.18) * (0.35 + strength),
-      -1,
-      1
-    );
-    starSurf.targetSteerY = clamp(
-      starSurf.targetSteerY + randomBetween(-0.13, 0.13) * (0.35 + strength),
-      -0.82,
-      0.82
-    );
-
+    // No speed or camera target is changed on an individual beat.
     if (music.beatCount % 4 === 0) {
       music.barCount += 1;
-
-      starSurf.targetSteerX = randomBetween(-0.98, 0.98);
-      starSurf.targetSteerY = randomBetween(-0.80, 0.80);
-
-      starSurf.toggles.gravity =
-        music.low > 0.30 && Math.random() < 0.34;
-      starSurf.toggles.prism =
-        music.high > 0.22 && Math.random() < 0.48;
-      starSurf.toggles.memory =
-        music.mid > 0.24 && Math.random() < 0.32;
-      starSurf.toggles.brake =
-        music.energy < 0.15 && Math.random() < 0.22;
-
-      // Spin is chosen at bar boundaries, not flickered every beat.
-      starSurf.toggles.spin =
-        drive > 0.60 && Math.random() < 0.15;
+      applyBarStyle();
     }
 
     if (music.beatCount % 16 === 0) {
       music.phraseCount += 1;
-      chooseStarSurfTargets(strength);
+      applyMusicSection("phrase");
     }
   }
 
@@ -1101,6 +1206,7 @@
     }
 
     music.beatCooldown = Math.max(0, music.beatCooldown - dt);
+    music.sectionCooldown = Math.max(0, music.sectionCooldown - dt);
     music.timeSinceBeat += dt;
 
     if (!starSurf.active || starSurfAudio.paused) {
@@ -1157,13 +1263,38 @@
 
     music.energy = damp(
       music.energy,
-      clamp(music.low * 0.44 + music.mid * 0.40 + music.high * 0.16, 0, 1),
+      clamp(
+        music.low * 0.44 +
+        music.mid * 0.40 +
+        music.high * 0.16,
+        0,
+        1
+      ),
       5.5,
       dt
     );
 
-    const fluxThreshold = Math.max(0.010, music.fluxAverage * 1.38);
-    const bassThreshold = Math.max(0.022, music.lowAverage * 0.22);
+    music.slowEnergy = damp(
+      music.slowEnergy,
+      music.energy,
+      0.18,
+      dt
+    );
+    music.energyTrend = damp(
+      music.energyTrend,
+      music.energy - music.slowEnergy,
+      0.85,
+      dt
+    );
+
+    const fluxThreshold = Math.max(
+      0.010,
+      music.fluxAverage * 1.38
+    );
+    const bassThreshold = Math.max(
+      0.022,
+      music.lowAverage * 0.22
+    );
     const onsetStrength = Math.max(
       0,
       (flux - fluxThreshold) * 8.0,
@@ -1178,11 +1309,34 @@
     if (strongOnset) {
       registerMusicBeat(onsetStrength, lowAttack);
     } else if (
-      music.timeSinceBeat > Math.max(0.72, music.estimatedBeatInterval * 1.75) &&
+      music.timeSinceBeat >
+        Math.max(0.72, music.estimatedBeatInterval * 1.75) &&
       music.energy > 0.10
     ) {
-      // Gentle fallback for sustained passages without hard transients.
-      registerMusicBeat(0.12 + music.energy * 0.20, music.low * 0.12);
+      registerMusicBeat(
+        0.12 + music.energy * 0.20,
+        music.low * 0.12
+      );
+    }
+
+    // Strong, sustained musical transitions may change the style between
+    // phrase boundaries. A cooldown prevents nervous oscillation.
+    if (music.sectionCooldown <= 0) {
+      const build =
+        music.energyTrend > 0.105 &&
+        music.energy > 0.25 &&
+        music.energy > music.slowEnergy + 0.075;
+
+      const drop =
+        music.energyTrend < -0.095 &&
+        music.slowEnergy > 0.20 &&
+        music.energy < music.slowEnergy - 0.070;
+
+      if (build) {
+        applyMusicSection("build");
+      } else if (drop) {
+        applyMusicSection("drop");
+      }
     }
 
     music.beatPulse = damp(music.beatPulse, 0, 9.5, dt);
@@ -1226,6 +1380,8 @@
       starSurf.toggles.prism = false;
       starSurf.toggles.reverse = false;
       starSurf.toggles.memory = false;
+      starSurf.toggles.aurora = false;
+      starSurf.toggles.echo = false;
 
       starSurf.targetSteerX = randomBetween(-0.55, 0.55);
       starSurf.targetSteerY = randomBetween(-0.42, 0.42);
@@ -1257,7 +1413,18 @@
     trailCanvas.width = Math.round(width * dpr);
     trailCanvas.height = Math.round(height * dpr);
     trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    impactLayer.width = Math.round(width * dpr);
+    impactLayer.height = Math.round(height * dpr);
+    impactLayer.style.width = width + "px";
+    impactLayer.style.height = height + "px";
+    impactCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    shatterCanvas.width = Math.round(width * dpr);
+    shatterCanvas.height = Math.round(height * dpr);
+
     clearTrails();
+    impactCtx.clearRect(0, 0, width, height);
   }
 
   function clearTrails() {
@@ -1313,7 +1480,28 @@
     else keys.delete(code);
   }
 
+  function handleKonamiCode(code) {
+    if (code === KONAMI_SEQUENCE[konamiProgress]) {
+      konamiProgress += 1;
+
+      if (konamiProgress === KONAMI_SEQUENCE.length) {
+        konamiProgress = 0;
+        triggerMeteor();
+      }
+      return;
+    }
+
+    konamiProgress =
+      code === KONAMI_SEQUENCE[0]
+        ? 1
+        : 0;
+  }
+
   addEventListener("keydown", event => {
+    if (!event.repeat) {
+      handleKonamiCode(event.code);
+    }
+
     if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space","KeyG","KeyH","KeyJ","KeyK"].includes(event.code)) {
       event.preventDefault();
       setKey(event.code, true);
@@ -1385,7 +1573,9 @@
       ["gravityToggle","gravity"],
       ["prismToggle","prism"],
       ["reverseToggle","reverse"],
-      ["memoryToggle","memory"]
+      ["memoryToggle","memory"],
+      ["auroraToggle","aurora"],
+      ["echoToggle","echo"]
     ];
     for (const [id, key] of toggleMap) {
       if (t[key] !== undefined) {
@@ -1518,6 +1708,8 @@
   bindToggle(inputs.prismToggle, "prism");
   bindToggle(inputs.reverseToggle, "reverse");
   bindToggle(inputs.memoryToggle, "memory");
+  bindToggle(inputs.auroraToggle, "aurora");
+  bindToggle(inputs.echoToggle, "echo");
 
   function restoreDefaults() {
     inputs.speedSlider.value = defaults.speed;
@@ -1534,6 +1726,8 @@
     inputs.prismToggle.checked = false;
     inputs.reverseToggle.checked = false;
     inputs.memoryToggle.checked = false;
+    inputs.auroraToggle.checked = false;
+    inputs.echoToggle.checked = false;
 
     for (const el of Object.values(inputs)) {
       if (el && el.tagName === "INPUT") {
@@ -1656,74 +1850,70 @@
     let inputY = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
 
     if (starSurf.active) {
-      const rhythmicPush = music.beatPulse * 0.12 + music.hitPulse * 0.08;
-      const bassLean = music.bassPulse * 0.09;
-
       inputX = clamp(
-        Math.sin(elapsed * 0.145) * 0.25 +
-        Math.cos(elapsed * 0.061) * 0.15 +
-        starSurf.targetSteerX * 0.88 +
-        rhythmicPush,
+        Math.sin(elapsed * 0.132) * 0.29 +
+        Math.cos(elapsed * 0.052) * 0.17 +
+        starSurf.targetSteerX * 0.90,
         -1,
         1
       );
 
       inputY = clamp(
-        Math.cos(elapsed * 0.118) * 0.20 +
-        Math.sin(elapsed * 0.049 + 1.1) * 0.12 +
-        starSurf.targetSteerY * 0.88 -
-        bassLean,
+        Math.cos(elapsed * 0.106) * 0.23 +
+        Math.sin(elapsed * 0.043 + 1.1) * 0.14 +
+        starSurf.targetSteerY * 0.90,
         -1,
         1
       );
 
-      const sliderEase = 0.72;
+      // Velocity eases especially slowly. Other style controls may complete
+      // their transition within a bar without twitching on individual beats.
       setSliderUI("speed", damp(
         settings.speed,
         starSurf.targets.speed,
-        sliderEase,
+        0.24,
         dt
       ), false);
 
       setSliderUI("spinSpeed", damp(
         settings.spinSpeed,
         starSurf.targets.spinSpeed,
-        0.32,
+        0.25,
         dt
       ), false);
 
       setSliderUI("density", damp(
         settings.density,
         starSurf.targets.density,
-        0.30,
+        0.22,
         dt
       ), false);
 
       setSliderUI("trail", damp(
         settings.trail,
         starSurf.targets.trail,
-        sliderEase,
+        0.48,
         dt
       ), false);
 
       setSliderUI("chroma", damp(
         settings.chroma,
         starSurf.targets.chroma,
-        sliderEase,
+        0.48,
         dt
       ), false);
 
       setSliderUI("veils", damp(
         settings.veils,
         starSurf.targets.veils,
-        sliderEase,
+        0.48,
         dt
       ), false);
 
       setSliderUI("decay", damp(
         settings.decay,
         starSurf.targets.decay,
-        0.34,
+        0.30,
         dt
       ), false);
 
@@ -1733,9 +1923,11 @@
       setToggleUI("prism", starSurf.toggles.prism, false);
       setToggleUI("reverse", starSurf.toggles.reverse, false);
       setToggleUI("memory", starSurf.toggles.memory, false);
+      setToggleUI("aurora", starSurf.toggles.aurora, false);
+      setToggleUI("echo", starSurf.toggles.echo, false);
     }
 
-    const steeringRate = starSurf.active ? 1.55 : 1.85;
+    const steeringRate = starSurf.active ? 1.35 : 1.85;
     state.steerX = damp(state.steerX, inputX, steeringRate, dt);
     state.steerY = damp(state.steerY, inputY, steeringRate, dt);
 
@@ -1764,19 +1956,22 @@
     state.gravity = damp(state.gravity, gravityOn ? 1 : 0, gravityOn ? 2.5 : 2.1, dt);
     state.prism = damp(state.prism, prismOn ? 1 : 0, prismOn ? 3.0 : 2.6, dt);
     state.reverse = damp(state.reverse, reverseOn ? 1 : 0, reverseOn ? 3.2 : 2.2, dt);
+    state.aurora = damp(state.aurora, toggles.aurora ? 1 : 0, toggles.aurora ? 1.4 : 1.8, dt);
+    state.echo = damp(state.echo, toggles.echo ? 1 : 0, toggles.echo ? 1.8 : 2.2, dt);
 
     const direction = 1 - state.reverse * 1.85;
-    const beatLift = starSurf.active
-      ? 1 +
-        music.beatPulse * (0.085 + music.low * 0.15) +
-        music.hitPulse * 0.10 +
-        music.bassPulse * 0.07
-      : 1;
-    const effectiveSpeed = settings.speed * state.speedFactor * beatLift;
-    state.effectiveSpeed = effectiveSpeed;
+    const requestedSpeed = settings.speed * state.speedFactor;
 
+    state.effectiveSpeed = damp(
+      state.effectiveSpeed,
+      requestedSpeed,
+      starSurf.active ? 0.62 : 1.75,
+      dt
+    );
+
+    const effectiveSpeed = state.effectiveSpeed;
     const travel = dt * (120 + effectiveSpeed * 1120) * direction;
-    const movementBoost = starSurf.active ? 1.38 : 1;
+    const movementBoost = starSurf.active ? 1.58 : 1;
     const lateralX = state.steerX * dt * 185 * movementBoost;
     const lateralY = state.steerY * dt * 145 * movementBoost;
 
@@ -1798,6 +1993,8 @@
       else if (direction < 0 && veil.z > FAR + 500) spawnVeil(veil, "near");
     }
 
+    updateMeteor(dt);
+
     const portraitTarget = matchesPortraitKey() ? 1 : 0;
     state.portraitReveal = damp(state.portraitReveal, portraitTarget, portraitTarget ? 0.8 : 2.2, dt);
 
@@ -1816,10 +2013,9 @@
     ctx.fillRect(0, 0, width, height);
 
     const musicGlow = starSurf.active
-      ? 0.86 +
-        music.high * 0.34 +
-        music.beatPulse * 0.13 +
-        music.hitPulse * 0.12
+      ? 0.90 +
+        music.high * 0.16 +
+        music.beatPulse * 0.025
       : 1;
     const intensity = Math.max(0, (state.effectiveSpeed - .3) / 1.8) * state.chromaFactor * settings.chroma * musicGlow;
     if (intensity <= .001) return;
@@ -1880,6 +2076,102 @@
     g.restore();
   }
 
+  function drawAuroraCurrent(g) {
+    if (state.aurora < 0.01) return;
+
+    const intensity = state.aurora;
+    const diagonal = Math.hypot(width, height);
+
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    g.lineCap = "round";
+
+    for (let i = 0; i < 4; i++) {
+      const phase = elapsed * (0.11 + i * 0.017) + i * 1.7;
+      const yBase =
+        height * (0.20 + i * 0.19) +
+        Math.sin(phase * 0.73) * height * 0.08;
+
+      const x0 = -width * 0.18;
+      const x1 = width * 1.18;
+      const c1x = width * 0.22;
+      const c2x = width * 0.78;
+      const c1y = yBase + Math.sin(phase) * height * 0.18;
+      const c2y = yBase + Math.cos(phase * 0.81) * height * 0.18;
+
+      const hue = (elapsed * 12 + i * 74) % 360;
+      const gradient = g.createLinearGradient(x0, yBase, x1, yBase);
+      gradient.addColorStop(0, "rgba(0,0,0,0)");
+      gradient.addColorStop(
+        0.28,
+        `hsla(${hue},100%,65%,${0.026 * intensity})`
+      );
+      gradient.addColorStop(
+        0.52,
+        `hsla(${(hue + 72) % 360},100%,76%,${0.052 * intensity})`
+      );
+      gradient.addColorStop(
+        0.76,
+        `hsla(${(hue + 145) % 360},100%,62%,${0.028 * intensity})`
+      );
+      gradient.addColorStop(1, "rgba(0,0,0,0)");
+
+      g.beginPath();
+      g.moveTo(x0, yBase);
+      g.bezierCurveTo(c1x, c1y, c2x, c2y, x1, yBase);
+      g.strokeStyle = gradient;
+      g.lineWidth =
+        diagonal * (0.025 + i * 0.006) *
+        (0.75 + Math.sin(phase * 0.57) * 0.12);
+      g.filter = `blur(${18 + i * 6}px)`;
+      g.stroke();
+    }
+
+    g.filter = "none";
+    g.restore();
+  }
+
+  function drawPhaseEcho() {
+    if (state.echo < 0.01) return;
+
+    const strength = state.echo;
+    const cx = width / 2;
+    const cy = height / 2;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+
+    for (let i = 1; i <= 3; i++) {
+      const amount = i / 3;
+      const scale = 1 + amount * 0.018 * strength;
+      const angle =
+        Math.sin(elapsed * 0.31 + i) *
+        0.0045 *
+        strength;
+      const xShift =
+        Math.sin(elapsed * 0.43 + i * 1.6) *
+        12 *
+        amount *
+        strength;
+      const yShift =
+        Math.cos(elapsed * 0.37 + i * 1.2) *
+        8 *
+        amount *
+        strength;
+
+      ctx.save();
+      ctx.globalAlpha = 0.055 * strength * (1 - amount * 0.14);
+      ctx.translate(cx + xShift, cy + yShift);
+      ctx.rotate(angle);
+      ctx.scale(scale, scale);
+      ctx.translate(-cx, -cy);
+      ctx.drawImage(trailCanvas, 0, 0, width, height);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
   function strokeTrail(g, head, mid, tail, style, lineWidth) {
     g.beginPath();
     g.moveTo(tail.x, tail.y);
@@ -1895,10 +2187,7 @@
     g.lineCap = "round";
 
     const speedVisual = Math.max(.1, state.effectiveSpeed);
-    const rhythmicTrail = starSurf.active
-      ? 1 + music.beatPulse * 0.22 + music.hitPulse * 0.17
-      : 1;
-    const trailDepth = (4 + speedVisual * 88) * settings.trail * rhythmicTrail;
+    const trailDepth = (4 + speedVisual * 88) * settings.trail;
     const spinLag = state.spinVelocity * .035;
 
     for (const star of stars) {
@@ -2010,6 +2299,479 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, width, height);
     ctx.restore();
+  }
+
+  function triggerMeteor() {
+    const edgeChoice = Math.floor(Math.random() * 3);
+
+    meteor.phase = "approach";
+    meteor.phaseTime = 0;
+    meteor.approachDuration = randomBetween(5.8, 7.0);
+    meteor.impactX = randomBetween(width * 0.34, width * 0.66);
+    meteor.impactY = randomBetween(height * 0.34, height * 0.62);
+
+    if (edgeChoice === 0) {
+      meteor.startX = randomBetween(-width * 0.10, width * 1.10);
+      meteor.startY = -height * 0.18;
+    } else if (edgeChoice === 1) {
+      meteor.startX = -width * 0.18;
+      meteor.startY = randomBetween(-height * 0.05, height * 0.42);
+    } else {
+      meteor.startX = width * 1.18;
+      meteor.startY = randomBetween(-height * 0.05, height * 0.42);
+    }
+
+    meteor.rotation = randomBetween(0, TAU);
+    meteor.spin = randomBetween(-1.25, 1.25);
+    meteor.rockRadii = Array.from(
+      { length: 18 },
+      () => randomBetween(0.76, 1.18)
+    );
+    meteor.cracks = [];
+    meteor.branches = [];
+    meteor.shards = [];
+    meteor.flash = 0;
+    meteor.shake = 0;
+  }
+
+  function captureShatterFrame() {
+    shatterCtx.setTransform(1, 0, 0, 1, 0, 0);
+    shatterCtx.clearRect(
+      0,
+      0,
+      shatterCanvas.width,
+      shatterCanvas.height
+    );
+    shatterCtx.drawImage(canvas, 0, 0);
+  }
+
+  function pointAtRadius(angle, radius) {
+    return {
+      x: meteor.impactX + Math.cos(angle) * radius,
+      y: meteor.impactY + Math.sin(angle) * radius
+    };
+  }
+
+  function generateShatterPattern() {
+    const farRadius = Math.hypot(width, height) * 1.25;
+    const crackCount = 18;
+    const angles = [];
+
+    for (let i = 0; i < crackCount; i++) {
+      angles.push(
+        i / crackCount * TAU +
+        randomBetween(-0.075, 0.075)
+      );
+    }
+    angles.sort((a, b) => a - b);
+
+    meteor.shards = angles.map((angle, i) => {
+      const next =
+        i === angles.length - 1
+          ? angles[0] + TAU
+          : angles[i + 1];
+      const middle = (angle + next) * 0.5;
+
+      return {
+        points: [
+          { x: meteor.impactX, y: meteor.impactY },
+          pointAtRadius(angle, farRadius),
+          pointAtRadius(next, farRadius)
+        ],
+        dx: Math.cos(middle) * randomBetween(4, 16),
+        dy: Math.sin(middle) * randomBetween(4, 16),
+        tint: randomBetween(0.018, 0.075)
+      };
+    });
+
+    meteor.cracks = angles.map(angle => {
+      const points = [
+        { x: meteor.impactX, y: meteor.impactY }
+      ];
+      let currentAngle = angle;
+      let radius = randomBetween(18, 28);
+      const segments = Math.floor(randomBetween(6, 10));
+
+      for (let i = 0; i < segments; i++) {
+        currentAngle += randomBetween(-0.105, 0.105);
+        radius += farRadius / segments * randomBetween(0.72, 1.10);
+        points.push(pointAtRadius(currentAngle, radius));
+      }
+
+      return points;
+    });
+
+    meteor.branches = [];
+    for (const crack of meteor.cracks) {
+      if (Math.random() > 0.72 || crack.length < 5) continue;
+
+      const index = Math.floor(randomBetween(2, crack.length - 2));
+      const origin = crack[index];
+      const baseAngle = Math.atan2(
+        origin.y - meteor.impactY,
+        origin.x - meteor.impactX
+      );
+      const branchAngle =
+        baseAngle +
+        (Math.random() < 0.5 ? -1 : 1) *
+        randomBetween(0.34, 0.78);
+
+      const points = [{ x: origin.x, y: origin.y }];
+      let distance = 0;
+      let angle = branchAngle;
+
+      for (let i = 0; i < 4; i++) {
+        distance += randomBetween(22, 52);
+        angle += randomBetween(-0.16, 0.16);
+        points.push({
+          x: origin.x + Math.cos(angle) * distance,
+          y: origin.y + Math.sin(angle) * distance
+        });
+      }
+
+      meteor.branches.push(points);
+    }
+  }
+
+  function impactMeteor() {
+    captureShatterFrame();
+    generateShatterPattern();
+    meteor.phase = "shatter";
+    meteor.phaseTime = 0;
+    meteor.flash = 1;
+    meteor.shake = 1;
+  }
+
+  function updateMeteor(dt) {
+    if (meteor.phase === "idle") return;
+
+    meteor.phaseTime += dt;
+
+    if (
+      meteor.phase === "approach" &&
+      meteor.phaseTime >= meteor.approachDuration
+    ) {
+      impactMeteor();
+      return;
+    }
+
+    if (meteor.phase === "shatter") {
+      meteor.flash = damp(meteor.flash, 0, 6.5, dt);
+      meteor.shake = damp(meteor.shake, 0, 3.8, dt);
+
+      if (meteor.phaseTime >= 10.5) {
+        meteor.phase = "idle";
+        meteor.phaseTime = 0;
+        meteor.flash = 0;
+        meteor.shake = 0;
+        impactCtx.clearRect(0, 0, width, height);
+      }
+    }
+  }
+
+  function drawMeteorApproach() {
+    const raw = clamp(
+      meteor.phaseTime / meteor.approachDuration,
+      0,
+      1
+    );
+    const progress = Math.pow(raw, 2.25);
+    const x =
+      meteor.startX +
+      (meteor.impactX - meteor.startX) * progress;
+    const y =
+      meteor.startY +
+      (meteor.impactY - meteor.startY) * progress;
+
+    const dx = meteor.impactX - meteor.startX;
+    const dy = meteor.impactY - meteor.startY;
+    const pathLength = Math.hypot(dx, dy) || 1;
+    const ux = dx / pathLength;
+    const uy = dy / pathLength;
+
+    const size =
+      5 +
+      Math.min(width, height) *
+      0.205 *
+      Math.pow(raw, 2.85);
+
+    const tailLength = Math.min(
+      pathLength * 0.28,
+      80 + size * 3.8
+    );
+    const tailX = x - ux * tailLength;
+    const tailY = y - uy * tailLength;
+
+    impactCtx.save();
+    impactCtx.globalCompositeOperation = "lighter";
+
+    const tailGradient = impactCtx.createLinearGradient(
+      tailX,
+      tailY,
+      x,
+      y
+    );
+    tailGradient.addColorStop(0, "rgba(80,120,255,0)");
+    tailGradient.addColorStop(
+      0.48,
+      `rgba(130,95,255,${0.10 + raw * 0.18})`
+    );
+    tailGradient.addColorStop(
+      0.82,
+      `rgba(255,105,45,${0.20 + raw * 0.42})`
+    );
+    tailGradient.addColorStop(
+      1,
+      `rgba(255,245,205,${0.54 + raw * 0.42})`
+    );
+
+    impactCtx.strokeStyle = tailGradient;
+    impactCtx.lineWidth = Math.max(2, size * 0.48);
+    impactCtx.lineCap = "round";
+    impactCtx.filter = `blur(${Math.max(4, size * 0.12)}px)`;
+    impactCtx.beginPath();
+    impactCtx.moveTo(tailX, tailY);
+    impactCtx.lineTo(x, y);
+    impactCtx.stroke();
+
+    const glow = impactCtx.createRadialGradient(
+      x,
+      y,
+      0,
+      x,
+      y,
+      size * 2.3
+    );
+    glow.addColorStop(
+      0,
+      `rgba(255,245,220,${0.30 + raw * 0.52})`
+    );
+    glow.addColorStop(
+      0.28,
+      `rgba(255,115,55,${0.22 + raw * 0.38})`
+    );
+    glow.addColorStop(
+      0.62,
+      `rgba(115,75,255,${0.10 + raw * 0.16})`
+    );
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+
+    impactCtx.fillStyle = glow;
+    impactCtx.beginPath();
+    impactCtx.arc(x, y, size * 2.3, 0, TAU);
+    impactCtx.fill();
+
+    impactCtx.filter = "none";
+    impactCtx.globalCompositeOperation = "source-over";
+    impactCtx.translate(x, y);
+    impactCtx.rotate(
+      meteor.rotation +
+      meteor.phaseTime * meteor.spin
+    );
+
+    const rockGradient = impactCtx.createRadialGradient(
+      -size * 0.24,
+      -size * 0.30,
+      size * 0.05,
+      0,
+      0,
+      size
+    );
+    rockGradient.addColorStop(0, "#a79b93");
+    rockGradient.addColorStop(0.34, "#625a58");
+    rockGradient.addColorStop(0.72, "#302c31");
+    rockGradient.addColorStop(1, "#15141a");
+
+    impactCtx.fillStyle = rockGradient;
+    impactCtx.strokeStyle =
+      `rgba(255,182,120,${0.16 + raw * 0.46})`;
+    impactCtx.lineWidth = Math.max(0.8, size * 0.035);
+    impactCtx.beginPath();
+
+    meteor.rockRadii.forEach((radius, i) => {
+      const angle = i / meteor.rockRadii.length * TAU;
+      const px = Math.cos(angle) * size * radius;
+      const py = Math.sin(angle) * size * radius;
+
+      if (i === 0) impactCtx.moveTo(px, py);
+      else impactCtx.lineTo(px, py);
+    });
+
+    impactCtx.closePath();
+    impactCtx.fill();
+    impactCtx.stroke();
+
+    for (let i = 0; i < 5; i++) {
+      const angle = i * 2.17 + 0.6;
+      const distance = size * (0.18 + (i % 3) * 0.13);
+      const craterX = Math.cos(angle) * distance;
+      const craterY = Math.sin(angle) * distance;
+      const craterR = size * (0.07 + (i % 2) * 0.035);
+
+      impactCtx.fillStyle = "rgba(8,7,11,.48)";
+      impactCtx.beginPath();
+      impactCtx.ellipse(
+        craterX,
+        craterY,
+        craterR,
+        craterR * 0.72,
+        angle,
+        0,
+        TAU
+      );
+      impactCtx.fill();
+
+      impactCtx.strokeStyle = "rgba(205,184,165,.16)";
+      impactCtx.lineWidth = Math.max(0.5, size * 0.015);
+      impactCtx.stroke();
+    }
+
+    impactCtx.restore();
+  }
+
+  function drawCrackPath(points, opacity, widthScale = 1) {
+    if (!points.length) return;
+
+    impactCtx.beginPath();
+    impactCtx.moveTo(points[0].x, points[0].y);
+
+    for (let i = 1; i < points.length; i++) {
+      impactCtx.lineTo(points[i].x, points[i].y);
+    }
+
+    impactCtx.strokeStyle =
+      `rgba(255,255,255,${0.76 * opacity})`;
+    impactCtx.lineWidth = 1.15 * widthScale;
+    impactCtx.shadowColor =
+      `rgba(135,195,255,${0.52 * opacity})`;
+    impactCtx.shadowBlur = 4;
+    impactCtx.stroke();
+
+    impactCtx.strokeStyle =
+      `rgba(0,0,0,${0.72 * opacity})`;
+    impactCtx.lineWidth = 0.42 * widthScale;
+    impactCtx.shadowBlur = 0;
+    impactCtx.stroke();
+  }
+
+  function drawShatteredScreen() {
+    const hold = 5.8;
+    const fadeDuration = 4.2;
+    const opacity =
+      meteor.phaseTime <= hold
+        ? 1
+        : clamp(
+            1 - (meteor.phaseTime - hold) / fadeDuration,
+            0,
+            1
+          );
+
+    const burst = clamp(meteor.phaseTime / 0.75, 0, 1);
+    const settle =
+      burst *
+      (0.72 + Math.exp(-meteor.phaseTime * 1.8) * 0.28);
+
+    impactCtx.save();
+
+    for (const shard of meteor.shards) {
+      impactCtx.save();
+      impactCtx.globalAlpha = 0.30 * opacity;
+      impactCtx.beginPath();
+      impactCtx.moveTo(
+        shard.points[0].x,
+        shard.points[0].y
+      );
+      impactCtx.lineTo(
+        shard.points[1].x,
+        shard.points[1].y
+      );
+      impactCtx.lineTo(
+        shard.points[2].x,
+        shard.points[2].y
+      );
+      impactCtx.closePath();
+      impactCtx.clip();
+
+      impactCtx.translate(
+        shard.dx * settle,
+        shard.dy * settle
+      );
+      impactCtx.drawImage(
+        shatterCanvas,
+        0,
+        0,
+        width,
+        height
+      );
+
+      impactCtx.fillStyle =
+        `rgba(185,220,255,${shard.tint * opacity})`;
+      impactCtx.fillRect(
+        -shard.dx * settle,
+        -shard.dy * settle,
+        width,
+        height
+      );
+      impactCtx.restore();
+    }
+
+    impactCtx.globalAlpha = opacity;
+
+    for (const crack of meteor.cracks) {
+      drawCrackPath(crack, opacity, 1);
+    }
+    for (const branch of meteor.branches) {
+      drawCrackPath(branch, opacity * 0.82, 0.82);
+    }
+
+    const impactGlow = impactCtx.createRadialGradient(
+      meteor.impactX,
+      meteor.impactY,
+      0,
+      meteor.impactX,
+      meteor.impactY,
+      Math.min(width, height) * 0.20
+    );
+    impactGlow.addColorStop(
+      0,
+      `rgba(255,255,255,${0.34 * opacity})`
+    );
+    impactGlow.addColorStop(
+      0.12,
+      `rgba(145,205,255,${0.16 * opacity})`
+    );
+    impactGlow.addColorStop(1, "rgba(0,0,0,0)");
+    impactCtx.fillStyle = impactGlow;
+    impactCtx.beginPath();
+    impactCtx.arc(
+      meteor.impactX,
+      meteor.impactY,
+      Math.min(width, height) * 0.20,
+      0,
+      TAU
+    );
+    impactCtx.fill();
+
+    impactCtx.restore();
+  }
+
+  function drawImpactLayer() {
+    impactCtx.clearRect(0, 0, width, height);
+
+    if (meteor.phase === "approach") {
+      drawMeteorApproach();
+      return;
+    }
+
+    if (meteor.phase === "shatter") {
+      drawShatteredScreen();
+
+      if (meteor.flash > 0.002) {
+        impactCtx.fillStyle =
+          `rgba(255,255,255,${meteor.flash * 0.72})`;
+        impactCtx.fillRect(0, 0, width, height);
+      }
+    }
   }
 
   function drawVignette() {
@@ -2211,11 +2973,27 @@
   function render() {
     const centre = viewCentre();
 
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+
+    if (meteor.shake > 0.002) {
+      const shakeAmount = meteor.shake * 10;
+      ctx.translate(
+        randomBetween(-shakeAmount, shakeAmount),
+        randomBetween(-shakeAmount, shakeAmount)
+      );
+    }
+
     drawBackground(centre.x, centre.y);
     prepareTrailLayer();
     drawVeils(trailCtx, centre.x, centre.y);
+    drawAuroraCurrent(trailCtx);
     drawStars(trailCtx, centre.x, centre.y);
     drawGravityOverlay(trailCtx, centre.x, centre.y);
+
+    drawPhaseEcho();
 
     ctx.save();
     ctx.globalAlpha = 1 - state.portraitReveal * 0.48;
@@ -2225,6 +3003,10 @@
     drawReverseWash();
     renderPortrait(width / 2, height / 2);
     drawVignette();
+
+    ctx.restore();
+
+    drawImpactLayer();
   }
 
   function frame(now) {
