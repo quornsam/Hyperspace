@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Prismatic Transit v13</title>
+<title>Prismatic Transit v14</title>
 <style>
   :root {
     color-scheme: dark;
@@ -47,16 +47,16 @@
   #ui { position: fixed; inset: 0; pointer-events: none; }
   #sidebar {
     position: absolute;
-    top: max(12px, env(safe-area-inset-top));
-    bottom: max(12px, env(safe-area-inset-bottom));
-    left: max(12px, env(safe-area-inset-left));
-    width: min(340px, calc(100vw - 48px));
+    top: max(8px, env(safe-area-inset-top));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: min(300px, calc(100vw - 38px));
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 14px;
+    gap: 7px;
+    padding: 9px;
     border: 1px solid var(--line);
-    border-radius: 18px;
+    border-radius: 14px;
     color: var(--text);
     background:
       linear-gradient(135deg, rgba(255,255,255,.05), transparent 42%),
@@ -94,19 +94,19 @@
     pointer-events: auto;
   }
   #ui:not(.collapsed) #panelHandle {
-    left: min(350px, calc(100vw - 36px));
+    left: min(310px, calc(100vw - 32px));
   }
 
-  h1 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: .01em; }
-  .sub { margin-top: 3px; color: var(--soft); font-size: 12px; line-height: 1.4; }
+  h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: .01em; }
+  .sub { margin-top: 2px; color: var(--soft); font-size: 10.5px; line-height: 1.28; }
   .section {
     border: 1px solid rgba(255,255,255,.08);
-    border-radius: 14px;
-    padding: 12px;
+    border-radius: 10px;
+    padding: 8px;
     background: rgba(255,255,255,.035);
   }
   .sectionTitle {
-    margin: 0 0 10px 0;
+    margin: 0 0 6px 0;
     font-size: 11px;
     letter-spacing: .12em;
     text-transform: uppercase;
@@ -117,46 +117,46 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    margin: 10px 0;
+    gap: 7px;
+    margin: 6px 0;
   }
   .row:first-child { margin-top: 0; }
   .row:last-child { margin-bottom: 0; }
   .labelWrap { min-width: 0; flex: 1; }
-  .label { display: block; font-size: 13px; color: #fff; }
-  .small { display: block; margin-top: 2px; font-size: 11px; color: rgba(255,255,255,.6); }
+  .label { display: block; font-size: 12px; color: #fff; }
+  .small { display: none; }
   .value {
-    min-width: 52px;
+    min-width: 44px;
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: rgba(255,255,255,.84);
-    font-size: 12px;
+    font-size: 11px;
   }
   input[type="range"], input[type="text"], select {
     width: 100%;
-    margin-top: 6px;
+    margin-top: 4px;
     accent-color: #bca3ff;
     background: rgba(255,255,255,.05);
     color: #fff;
     border: 1px solid rgba(255,255,255,.12);
-    border-radius: 10px;
-    padding: 8px 10px;
+    border-radius: 8px;
+    padding: 6px 8px;
     font: inherit;
   }
   .toggleGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0,1fr));
-    gap: 8px;
+    gap: 5px;
   }
   .toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 10px;
+    gap: 6px;
+    padding: 6px 7px;
     border: 1px solid rgba(255,255,255,.09);
-    border-radius: 12px;
+    border-radius: 9px;
     background: rgba(255,255,255,.03);
-    font-size: 13px;
+    font-size: 11.5px;
     color: #fff;
   }
   .toggle input {
@@ -168,7 +168,7 @@
   .buttonRow {
     display: grid;
     grid-template-columns: repeat(2, minmax(0,1fr));
-    gap: 8px;
+    gap: 5px;
   }
   .buttonRow.three {
     grid-template-columns: repeat(3, minmax(0,1fr));
@@ -176,12 +176,13 @@
   button {
     appearance: none;
     border: 1px solid rgba(255,255,255,.17);
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 9px;
+    padding: 7px 8px;
     color: #fff;
     background: linear-gradient(rgba(255,255,255,.1), rgba(255,255,255,.03));
     box-shadow: inset 0 1px 0 rgba(255,255,255,.1);
     font: inherit;
+    font-size: 11.5px;
     font-weight: 700;
     cursor: pointer;
   }
@@ -273,8 +274,8 @@
     letter-spacing: .08em;
   }
   #saveMessage {
-    margin-top: 8px;
-    font-size: 11px;
+    margin-top: 5px;
+    font-size: 10px;
     color: rgba(255,255,255,.65);
     min-height: 16px;
   }
@@ -306,6 +307,7 @@
         <span class="shortcut">H</span>
         <span class="shortcut">J</span>
         <span class="shortcut">K</span>
+        <span class="shortcut">N next</span>
       </div>
     </section>
 
@@ -350,6 +352,15 @@
 
       <div class="row">
         <div class="labelWrap">
+          <span class="label">Star blur</span>
+          <span class="small">Softens stars and their streaks</span>
+          <input id="blurSlider" type="range" min="0" max="5" step="0.1" value="0">
+        </div>
+        <div class="value" id="blurValue">0.0 px</div>
+      </div>
+
+      <div class="row">
+        <div class="labelWrap">
           <span class="label">Chroma</span>
           <span class="small">Amount of colour in space</span>
           <input id="chromaSlider" type="range" min="0" max="1.6" step="0.01" value="1">
@@ -388,6 +399,16 @@
         <label class="toggle"><input id="auroraToggle" type="checkbox"> Aurora current</label>
         <label class="toggle"><input id="echoToggle" type="checkbox"> Phase echo</label>
       </div>
+      <div class="row">
+        <div class="labelWrap">
+          <span class="label">Memory tone</span>
+          <select id="memoryToneSelect">
+            <option value="auto">Auto — light or dark</option>
+            <option value="light">Light memory</option>
+            <option value="dark">Dark memory</option>
+          </select>
+        </div>
+      </div>
     </section>
 
     <section class="section">
@@ -420,11 +441,12 @@
         <button id="hideBtn" type="button">Hide UI</button>
         <button id="defaultsBtn" type="button">Restore defaults</button>
       </div>
-      <div class="buttonRow" style="margin-top:8px">
+      <div class="buttonRow" style="margin-top:5px">
         <button id="starSurfBtn" type="button">Star Surf: Off</button>
+        <button id="nextTrackBtn" type="button">Next track · N</button>
       </div>
-      <div class="sub" style="margin-top:8px">
-        Star Surf plays the tracks in the <strong>music</strong> folder in sequence, then loops back to the first. Movement follows live hits, bass, rhythm and musical energy.
+      <div class="sub" style="margin-top:5px">
+        Plays every track in <strong>music</strong> in sequence and loops.
       </div>
       <div id="trackStatus" class="sub" style="margin-top:6px">Music: waiting</div>
     </section>
@@ -474,6 +496,7 @@
   const resetBtn = document.getElementById("resetBtn");
   const defaultsBtn = document.getElementById("defaultsBtn");
   const starSurfBtn = document.getElementById("starSurfBtn");
+  const nextTrackBtn = document.getElementById("nextTrackBtn");
   const trackStatus = document.getElementById("trackStatus");
   const saveMessage = document.getElementById("saveMessage");
 
@@ -519,9 +542,11 @@
     spinSpeed: 1,
     density: 760,
     trail: 1,
+    blur: 0,
     chroma: 1,
     veils: 1,
-    decay: 0.018
+    decay: 0.018,
+    memoryTone: "auto"
   };
 
   const settings = {
@@ -529,9 +554,11 @@
     spinSpeed: defaults.spinSpeed,
     density: defaults.density,
     trail: defaults.trail,
+    blur: defaults.blur,
     chroma: defaults.chroma,
     veils: defaults.veils,
-    decay: defaults.decay
+    decay: defaults.decay,
+    memoryTone: defaults.memoryTone
   };
 
   const toggles = {
@@ -557,6 +584,9 @@
     reverse: 0,
     aurora: 0,
     echo: 0,
+    memoryStrength: 0,
+    memoryDark: 0,
+    autoMemoryDark: false,
     effectiveSpeed: 1,
     portraitReveal: 0
   };
@@ -569,11 +599,14 @@
     targetSteerY: 0,
     steerHoldX: 0,
     steerHoldY: 0,
+    nextBrakeBeat: 16,
+    brakeReleaseBeat: 0,
     targets: {
       speed: settings.speed,
       spinSpeed: settings.spinSpeed,
       density: settings.density,
       trail: settings.trail,
+      blur: settings.blur,
       chroma: settings.chroma,
       veils: settings.veils,
       decay: settings.decay
@@ -667,6 +700,7 @@
     spinSpeedSlider: document.getElementById("spinSpeedSlider"),
     densitySlider: document.getElementById("densitySlider"),
     trailSlider: document.getElementById("trailSlider"),
+    blurSlider: document.getElementById("blurSlider"),
     chromaSlider: document.getElementById("chromaSlider"),
     veilSlider: document.getElementById("veilSlider"),
     decaySlider: document.getElementById("decaySlider"),
@@ -675,6 +709,7 @@
     spinSpeedValue: document.getElementById("spinSpeedValue"),
     densityValue: document.getElementById("densityValue"),
     trailValue: document.getElementById("trailValue"),
+    blurValue: document.getElementById("blurValue"),
     chromaValue: document.getElementById("chromaValue"),
     veilValue: document.getElementById("veilValue"),
     decayValue: document.getElementById("decayValue"),
@@ -687,6 +722,7 @@
     memoryToggle: document.getElementById("memoryToggle"),
     auroraToggle: document.getElementById("auroraToggle"),
     echoToggle: document.getElementById("echoToggle"),
+    memoryToneSelect: document.getElementById("memoryToneSelect"),
 
     presetName: document.getElementById("presetName"),
     presetSelect: document.getElementById("presetSelect"),
@@ -718,8 +754,19 @@
     };
     const id = map[key];
     if (!id || !inputs[id]) return;
+    const previous = toggles[key];
     inputs[id].checked = !!value;
     toggles[key] = !!value;
+
+    if (
+      key === "memory" &&
+      toggles.memory &&
+      !previous &&
+      settings.memoryTone === "auto"
+    ) {
+      state.autoMemoryDark = Math.random() < 0.32;
+    }
+
     if (persist) saveSession();
   }
 
@@ -729,6 +776,7 @@
       spinSpeed: { id: "spinSpeedSlider", label: "spinSpeedValue", format: v => v.toFixed(2) + "×" },
       density: { id: "densitySlider", label: "densityValue", format: v => Math.round(v).toString() },
       trail: { id: "trailSlider", label: "trailValue", format: v => v.toFixed(2) + "×" },
+      blur: { id: "blurSlider", label: "blurValue", format: v => v.toFixed(1) + " px" },
       chroma: { id: "chromaSlider", label: "chromaValue", format: v => v.toFixed(2) + "×" },
       veils: { id: "veilSlider", label: "veilValue", format: v => v.toFixed(2) + "×" },
       decay: { id: "decaySlider", label: "decayValue", format: v => v.toFixed(3) }
@@ -741,6 +789,7 @@
       spinSpeed: 0.01,
       density: 1,
       trail: 0.01,
+      blur: 0.1,
       chroma: 0.01,
       veils: 0.01,
       decay: 0.001
@@ -1024,9 +1073,26 @@
     }
   }
 
-  function playNextTrack() {
+  async function playNextTrack() {
+    await loadMusicPlaylist();
     if (!music.playlist.length) return;
-    playTrack((music.trackIndex + 1) % music.playlist.length, true);
+
+    const nextIndex =
+      (music.trackIndex + 1) % music.playlist.length;
+
+    if (starSurf.active) {
+      await playTrack(nextIndex, true);
+    } else {
+      music.trackIndex = nextIndex;
+      const track = music.playlist[music.trackIndex];
+      music.currentTrackName = track.name;
+      setTrackStatus(
+        "Selected " +
+        (music.trackIndex + 1) + "/" +
+        music.playlist.length + ": " +
+        track.name
+      );
+    }
   }
 
   starSurfAudio.addEventListener("ended", () => {
@@ -1045,8 +1111,15 @@
     // These become stable targets for a whole musical phrase.
     starSurf.targets.speed = 0.58 + drive * 1.62;
     starSurf.targets.spinSpeed = 0.20 + Math.pow(Math.random(), 5.8) * 2.80;
-    starSurf.targets.density = Math.round(540 + drive * 700 + shimmer * 260);
+    starSurf.targets.density = Math.round(
+      500 + drive * 680 + shimmer * 240
+    );
     starSurf.targets.trail = 0.68 + drive * 1.62;
+    starSurf.targets.blur = clamp(
+      0.15 + (1 - shimmer) * 1.35 + Math.random() * 0.55,
+      0,
+      2.4
+    );
     starSurf.targets.chroma = 0.38 + shimmer * 1.18;
     starSurf.targets.veils = 0.26 + clamp(music.mid * 1.55, 0, 1) * 1.10;
     starSurf.targets.decay = 0.007 + (1 - drive) * 0.034;
@@ -1055,8 +1128,7 @@
     starSurf.toggles.gravity = music.low > 0.30 && Math.random() < 0.30;
     starSurf.toggles.prism = shimmer > 0.27 && Math.random() < 0.43;
     starSurf.toggles.reverse = drive > 0.78 && Math.random() < 0.025;
-    starSurf.toggles.memory = music.mid > 0.25 && Math.random() < 0.28;
-    starSurf.toggles.brake = false;
+    starSurf.toggles.memory = music.mid > 0.25 && Math.random() < 0.34;
     starSurf.toggles.aurora = Math.random() < 0.44;
     starSurf.toggles.echo = music.high > 0.22 && Math.random() < 0.34;
 
@@ -1064,6 +1136,41 @@
     starSurf.targetSteerY = randomBetween(-0.76, 0.76);
     starSurf.steerHoldX = randomBetween(-0.15, 0.15);
     starSurf.steerHoldY = randomBetween(-0.12, 0.12);
+
+    if (settings.memoryTone === "auto") {
+      state.autoMemoryDark = Math.random() < 0.28;
+    }
+  }
+
+  function beginStarSurfBrake(bars = 1) {
+    starSurf.toggles.brake = true;
+    starSurf.brakeReleaseBeat =
+      music.beatCount + Math.max(1, bars) * 4;
+    starSurf.nextBrakeBeat =
+      starSurf.brakeReleaseBeat +
+      24 +
+      Math.floor(Math.random() * 25);
+  }
+
+  function updateStarSurfBrake() {
+    if (
+      starSurf.toggles.brake &&
+      music.beatCount >= starSurf.brakeReleaseBeat
+    ) {
+      starSurf.toggles.brake = false;
+    }
+
+    if (
+      !starSurf.toggles.brake &&
+      music.beatCount >= starSurf.nextBrakeBeat
+    ) {
+      const overdue =
+        music.beatCount >= starSurf.nextBrakeBeat + 16;
+
+      if (overdue || Math.random() < 0.34) {
+        beginStarSurfBrake(Math.random() < 0.18 ? 2 : 1);
+      }
+    }
   }
 
   function applyBarStyle() {
@@ -1092,15 +1199,36 @@
       0.060
     );
 
+    const densityGoal =
+      480 +
+      music.energy * 650 +
+      music.high * 190 +
+      randomBetween(-95, 95);
+
+    starSurf.targets.density = Math.round(clamp(
+      starSurf.targets.density * 0.56 +
+      densityGoal * 0.44,
+      320,
+      1480
+    ));
+
+    starSurf.targets.blur = clamp(
+      0.10 +
+      (1 - colour) * 1.25 +
+      randomBetween(0, 0.75),
+      0,
+      2.7
+    );
+
     starSurf.targetSteerX = randomBetween(-0.98, 0.98);
     starSurf.targetSteerY = randomBetween(-0.78, 0.78);
 
     starSurf.toggles.gravity =
-      music.low > 0.30 && Math.random() < 0.32;
+      music.low > 0.28 && Math.random() < 0.36;
     starSurf.toggles.prism =
-      music.high > 0.23 && Math.random() < 0.44;
+      music.high > 0.21 && Math.random() < 0.48;
     starSurf.toggles.memory =
-      music.mid > 0.25 && Math.random() < 0.27;
+      music.mid > 0.22 && Math.random() < 0.36;
     starSurf.toggles.aurora =
       Math.random() < (0.28 + music.mid * 0.32);
     starSurf.toggles.echo =
@@ -1121,9 +1249,11 @@
       starSurf.targets.speed = clamp(1.05 + lift * 1.10, 0.85, 2.30);
       starSurf.targets.density = Math.round(760 + lift * 610);
       starSurf.targets.trail = clamp(1.15 + lift * 1.25, 0.8, 2.85);
+      starSurf.targets.blur = clamp(0.15 + (1 - music.high) * 0.65, 0, 1.0);
       starSurf.targets.chroma = clamp(0.75 + music.high * 0.90, 0.5, 1.60);
       starSurf.targets.veils = clamp(0.55 + music.mid * 0.75, 0.3, 1.50);
       starSurf.toggles.brake = false;
+      starSurf.brakeReleaseBeat = 0;
       starSurf.toggles.reverse = false;
       starSurf.toggles.aurora = true;
       starSurf.toggles.echo = music.high > 0.24;
@@ -1136,6 +1266,7 @@
       starSurf.targets.speed = clamp(0.38 + music.energy * 0.48, 0.30, 0.92);
       starSurf.targets.density = Math.round(380 + music.energy * 350);
       starSurf.targets.trail = clamp(0.46 + music.energy * 0.62, 0.35, 1.20);
+      starSurf.targets.blur = clamp(1.1 + (1 - music.high) * 1.1, 0.8, 2.6);
       starSurf.targets.chroma = clamp(0.14 + music.high * 0.62, 0.05, 0.90);
       starSurf.targets.veils = clamp(0.18 + music.mid * 0.65, 0.05, 0.90);
       starSurf.targets.spinSpeed = 0.24;
@@ -1148,6 +1279,10 @@
       starSurf.toggles.echo = false;
       starSurf.targetSteerX = randomBetween(-0.42, 0.42);
       starSurf.targetSteerY = randomBetween(-0.32, 0.32);
+
+      if (!starSurf.toggles.brake && Math.random() < 0.72) {
+        beginStarSurfBrake(Math.random() < 0.25 ? 2 : 1);
+      }
       return;
     }
 
@@ -1178,6 +1313,7 @@
     music.hitPulse = clamp(strength * 3.1, 0.24, 1);
     music.bassPulse = clamp(bassStrength * 3.6, 0.18, 1);
     music.beatCount += 1;
+    updateStarSurfBrake();
 
     // No speed or camera target is changed on an individual beat.
     if (music.beatCount % 4 === 0) {
@@ -1370,6 +1506,7 @@
       starSurf.targets.spinSpeed = 0.25;
       starSurf.targets.density = 620;
       starSurf.targets.trail = 0.82;
+      starSurf.targets.blur = 0.45;
       starSurf.targets.chroma = 0.45;
       starSurf.targets.veils = 0.42;
       starSurf.targets.decay = 0.025;
@@ -1382,6 +1519,8 @@
       starSurf.toggles.memory = false;
       starSurf.toggles.aurora = false;
       starSurf.toggles.echo = false;
+      starSurf.nextBrakeBeat = 16;
+      starSurf.brakeReleaseBeat = 0;
 
       starSurf.targetSteerX = randomBetween(-0.55, 0.55);
       starSurf.targetSteerY = randomBetween(-0.42, 0.42);
@@ -1506,6 +1645,15 @@
       event.preventDefault();
       setKey(event.code, true);
     }
+    const editing =
+      event.target &&
+      ["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName);
+
+    if (event.code === "KeyN" && !event.repeat && !editing) {
+      event.preventDefault();
+      playNextTrack();
+    }
+
     if (event.code === "KeyF" && !event.repeat) toggleFullscreen();
     if (event.code === "Tab" && !event.repeat) {
       event.preventDefault();
@@ -1556,6 +1704,7 @@
       ["spinSpeedSlider","spinSpeed"],
       ["densitySlider","density"],
       ["trailSlider","trail"],
+      ["blurSlider","blur"],
       ["chromaSlider","chroma"],
       ["veilSlider","veils"],
       ["decaySlider","decay"]
@@ -1582,6 +1731,14 @@
         inputs[id].checked = !!t[key];
         inputs[id].dispatchEvent(new Event("input"));
       }
+    }
+
+    if (s.memoryTone !== undefined) {
+      inputs.memoryToneSelect.value =
+        ["auto", "light", "dark"].includes(s.memoryTone)
+          ? s.memoryTone
+          : "auto";
+      inputs.memoryToneSelect.dispatchEvent(new Event("change"));
     }
   }
 
@@ -1689,13 +1846,25 @@
   bindRange(inputs.spinSpeedSlider, inputs.spinSpeedValue, "spinSpeed", v => v.toFixed(2) + "×");
   bindRange(inputs.densitySlider, inputs.densityValue, "density", v => Math.round(v).toString());
   bindRange(inputs.trailSlider, inputs.trailValue, "trail", v => v.toFixed(2) + "×");
+  bindRange(inputs.blurSlider, inputs.blurValue, "blur", v => v.toFixed(1) + " px");
   bindRange(inputs.chromaSlider, inputs.chromaValue, "chroma", v => v.toFixed(2) + "×");
   bindRange(inputs.veilSlider, inputs.veilValue, "veils", v => v.toFixed(2) + "×");
   bindRange(inputs.decaySlider, inputs.decayValue, "decay", v => v.toFixed(3));
 
   function bindToggle(el, key) {
     const update = () => {
+      const previous = toggles[key];
       toggles[key] = el.checked;
+
+      if (
+        key === "memory" &&
+        toggles.memory &&
+        !previous &&
+        settings.memoryTone === "auto"
+      ) {
+        state.autoMemoryDark = Math.random() < 0.32;
+      }
+
       saveSession();
     };
     el.addEventListener("input", update);
@@ -1711,11 +1880,27 @@
   bindToggle(inputs.auroraToggle, "aurora");
   bindToggle(inputs.echoToggle, "echo");
 
+  inputs.memoryToneSelect.addEventListener("change", () => {
+    const value = inputs.memoryToneSelect.value;
+    settings.memoryTone =
+      ["auto", "light", "dark"].includes(value)
+        ? value
+        : "auto";
+
+    if (settings.memoryTone === "auto" && toggles.memory) {
+      state.autoMemoryDark = Math.random() < 0.32;
+    }
+
+    saveSession();
+  });
+  inputs.memoryToneSelect.value = settings.memoryTone;
+
   function restoreDefaults() {
     inputs.speedSlider.value = defaults.speed;
     inputs.spinSpeedSlider.value = defaults.spinSpeed;
     inputs.densitySlider.value = defaults.density;
     inputs.trailSlider.value = defaults.trail;
+    inputs.blurSlider.value = defaults.blur;
     inputs.chromaSlider.value = defaults.chroma;
     inputs.veilSlider.value = defaults.veils;
     inputs.decaySlider.value = defaults.decay;
@@ -1728,6 +1913,8 @@
     inputs.memoryToggle.checked = false;
     inputs.auroraToggle.checked = false;
     inputs.echoToggle.checked = false;
+    inputs.memoryToneSelect.value = defaults.memoryTone;
+    inputs.memoryToneSelect.dispatchEvent(new Event("change"));
 
     for (const el of Object.values(inputs)) {
       if (el && el.tagName === "INPUT") {
@@ -1745,6 +1932,8 @@
     state.spinVelocity = 0;
     state.steerX = 0;
     state.steerY = 0;
+    state.memoryStrength = 0;
+    state.memoryDark = 0;
     state.portraitReveal = 0;
     clearTrails();
   }
@@ -1755,6 +1944,7 @@
     toast("Field reset");
   });
   starSurfBtn.addEventListener("click", () => setStarSurf(!starSurf.active));
+  nextTrackBtn.addEventListener("click", () => playNextTrack());
 
   async function toggleFullscreen() {
     try {
@@ -1885,7 +2075,7 @@
       setSliderUI("density", damp(
         settings.density,
         starSurf.targets.density,
-        0.22,
+        0.34,
         dt
       ), false);
 
@@ -1893,6 +2083,13 @@
         settings.trail,
         starSurf.targets.trail,
         0.48,
+        dt
+      ), false);
+
+      setSliderUI("blur", damp(
+        settings.blur,
+        starSurf.targets.blur,
+        0.36,
         dt
       ), false);
 
@@ -1931,14 +2128,36 @@
     state.steerX = damp(state.steerX, inputX, steeringRate, dt);
     state.steerY = damp(state.steerY, inputY, steeringRate, dt);
 
-    const braking = effectActive("Space", "brake");
+    const manualBraking = keys.has("Space");
+    const automaticBraking = toggles.brake && !manualBraking;
+    const braking = manualBraking || automaticBraking;
     const spinOn = effectActive("KeyG", "spin");
     const gravityOn = effectActive("KeyH", "gravity");
     const prismOn = effectActive("KeyJ", "prism");
     const reverseOn = effectActive("KeyK", "reverse");
 
-    state.speedFactor = damp(state.speedFactor, braking ? .12 : 1, braking ? 5.2 : 1.35, dt);
-    state.chromaFactor = damp(state.chromaFactor, braking ? 0 : 1, braking ? 5.8 : 1.1, dt);
+    const brakeSpeedTarget =
+      manualBraking ? 0.12 :
+      automaticBraking ? 0.22 :
+      1;
+
+    const brakeColourTarget =
+      manualBraking ? 0 :
+      automaticBraking ? 0.34 :
+      1;
+
+    state.speedFactor = damp(
+      state.speedFactor,
+      brakeSpeedTarget,
+      braking ? 3.4 : 1.15,
+      dt
+    );
+    state.chromaFactor = damp(
+      state.chromaFactor,
+      brakeColourTarget,
+      braking ? 2.8 : 1.0,
+      dt
+    );
 
     const spinNormal = clamp((settings.spinSpeed - 0.2) / 2.8, 0, 1);
     const spinAcceleration = 0.055 + 4.75 * Math.pow(spinNormal, 3.45);
@@ -1958,6 +2177,29 @@
     state.reverse = damp(state.reverse, reverseOn ? 1 : 0, reverseOn ? 3.2 : 2.2, dt);
     state.aurora = damp(state.aurora, toggles.aurora ? 1 : 0, toggles.aurora ? 1.4 : 1.8, dt);
     state.echo = damp(state.echo, toggles.echo ? 1 : 0, toggles.echo ? 1.8 : 2.2, dt);
+
+    state.memoryStrength = damp(
+      state.memoryStrength,
+      toggles.memory ? 1 : 0,
+      toggles.memory ? 1.35 : 0.28,
+      dt
+    );
+
+    const darkMemoryTarget =
+      settings.memoryTone === "dark"
+        ? 1
+        : settings.memoryTone === "light"
+          ? 0
+          : state.autoMemoryDark
+            ? 1
+            : 0;
+
+    state.memoryDark = damp(
+      state.memoryDark,
+      darkMemoryTarget,
+      0.55,
+      dt
+    );
 
     const direction = 1 - state.reverse * 1.85;
     const requestedSpeed = settings.speed * state.speedFactor;
@@ -2030,10 +2272,17 @@
   }
 
   function prepareTrailLayer() {
-    if (toggles.memory) {
+    const strength = state.memoryStrength;
+
+    if (strength > 0.002) {
+      const naturalFade =
+        settings.decay +
+        (1 - strength) * 0.008;
+
       trailCtx.save();
       trailCtx.globalCompositeOperation = "source-over";
-      trailCtx.fillStyle = `rgba(0,0,0,${settings.decay})`;
+      trailCtx.fillStyle =
+        `rgba(0,0,0,${clamp(naturalFade, 0.001, 0.095)})`;
       trailCtx.fillRect(0, 0, width, height);
       trailCtx.restore();
     } else {
@@ -2185,6 +2434,10 @@
     g.save();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
+
+    if (settings.blur > 0.01) {
+      g.filter = `blur(${settings.blur.toFixed(2)}px)`;
+    }
 
     const speedVisual = Math.max(.1, state.effectiveSpeed);
     const trailDepth = (4 + speedVisual * 88) * settings.trail;
@@ -2970,6 +3223,32 @@
     ctx.restore();
   }
 
+  function compositeStarField() {
+    const darkMix = clamp(
+      state.memoryDark * state.memoryStrength,
+      0,
+      1
+    );
+
+    ctx.save();
+    ctx.globalAlpha =
+      (1 - state.portraitReveal * 0.48) *
+      (1 - darkMix * 0.82);
+    ctx.drawImage(trailCanvas, 0, 0, width, height);
+    ctx.restore();
+
+    if (darkMix > 0.002) {
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha =
+        darkMix *
+        (0.62 + state.memoryStrength * 0.24);
+      ctx.filter = "brightness(0)";
+      ctx.drawImage(trailCanvas, 0, 0, width, height);
+      ctx.restore();
+    }
+  }
+
   function render() {
     const centre = viewCentre();
 
@@ -2995,10 +3274,7 @@
 
     drawPhaseEcho();
 
-    ctx.save();
-    ctx.globalAlpha = 1 - state.portraitReveal * 0.48;
-    ctx.drawImage(trailCanvas, 0, 0, width, height);
-    ctx.restore();
+    compositeStarField();
 
     drawReverseWash();
     renderPortrait(width / 2, height / 2);
