@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Prismatic Transit v17</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Prismatic Transit v18</title>
 <style>
   :root {
     color-scheme: dark;
@@ -96,6 +96,35 @@
   #ui:not(.collapsed) #panelHandle {
     left: min(310px, calc(100vw - 32px));
   }
+
+  #panelHandle {
+    transition:
+      left .28s ease,
+      opacity .7s ease,
+      transform .7s ease;
+  }
+  body.controls-idle #sidebar,
+  body.controls-idle #panelHandle {
+    opacity: 0;
+    pointer-events: none;
+  }
+  body.controls-idle #panelHandle {
+    transform: translate(-115%, -50%);
+  }
+  body.controls-active #sidebar,
+  body.controls-active #panelHandle {
+    opacity: 1;
+  }
+  #starSurfBtn {
+    color: #1d1400;
+    border-color: rgba(255,226,139,.78);
+    background: linear-gradient(180deg, #ffe79a 0%, #e4b943 48%, #9a6d12 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.64),
+      0 0 18px rgba(232,181,54,.22);
+    text-shadow: 0 1px 0 rgba(255,255,255,.38);
+  }
+  #starSurfBtn:hover { filter: brightness(1.08); }
 
   h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: .01em; }
   .sub { margin-top: 2px; color: var(--soft); font-size: 10.5px; line-height: 1.28; }
@@ -215,73 +244,7 @@
     font-size: 11px;
     color: rgba(255,255,255,.86);
   }
-  #touchpad {
-    position: absolute;
-    right: max(16px, env(safe-area-inset-right));
-    bottom: max(16px, env(safe-area-inset-bottom));
-    display: none;
-    gap: 12px;
-    pointer-events: auto;
-  }
-  #ui.collapsed #touchpad { display: none !important; }
-  .dpad {
-    display: grid;
-    grid-template-columns: repeat(3,46px);
-    grid-template-rows: repeat(3,46px);
-    gap: 5px;
-  }
-  .touchBtn {
-    width: 46px;
-    height: 46px;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(255,255,255,.16);
-    border-radius: 12px;
-    color: #fff;
-    background: rgba(10,13,21,.54);
-    font-size: 20px;
-    cursor: pointer;
-  }
-  .up { grid-column: 2; grid-row: 1; }
-  .left { grid-column: 1; grid-row: 2; }
-  .right { grid-column: 3; grid-row: 2; }
-  .down { grid-column: 2; grid-row: 3; }
-  .fxpad {
-    display: grid;
-    grid-template-columns: repeat(2,48px);
-    gap: 6px;
-    align-content: end;
-  }
-  .fx {
-    width: 48px;
-    height: 48px;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(255,255,255,.16);
-    border-radius: 50%;
-    color: #fff;
-    background: rgba(10,13,21,.54);
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .brake {
-    grid-column: 1 / -1;
-    width: 102px;
-    height: 46px;
-    border-radius: 24px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-  }
-  #saveMessage {
-    margin-top: 5px;
-    font-size: 10px;
-    color: rgba(255,255,255,.65);
-    min-height: 16px;
-  }
-  @media (pointer: coarse), (max-width: 900px) {
-    #touchpad { display: flex; }
-  }
+  #touchpad { display: none !important; }
 </style>
 </head>
 <body>
@@ -294,6 +257,16 @@
       <h1>Prismatic Transit</h1>
       <div class="sub">A steerable hyperspace screensaver with live controls. Hide this panel with the edge tab or the button below.</div>
     </div>
+
+    <section class="section starSurfSection">
+      <div class="sectionTitle">Star Surf</div>
+      <div class="buttonRow">
+        <button id="starSurfBtn" type="button">Star Surf: Off</button>
+        <button id="nextTrackBtn" type="button">Next track · N</button>
+      </div>
+      <div class="sub" style="margin-top:5px">Plays every track in <strong>music</strong> in sequence and loops.</div>
+      <div id="trackStatus" class="sub" style="margin-top:6px">Music: waiting</div>
+    </section>
 
     <section class="section">
       <div class="sectionTitle">Status</div>
@@ -441,34 +414,11 @@
         <button id="hideBtn" type="button">Hide UI</button>
         <button id="defaultsBtn" type="button">Restore defaults</button>
       </div>
-      <div class="buttonRow" style="margin-top:5px">
-        <button id="starSurfBtn" type="button">Star Surf: Off</button>
-        <button id="nextTrackBtn" type="button">Next track · N</button>
-      </div>
-      <div class="sub" style="margin-top:5px">
-        Plays every track in <strong>music</strong> in sequence and loops.
-      </div>
-      <div id="trackStatus" class="sub" style="margin-top:6px">Music: waiting</div>
     </section>
   </aside>
 
   <button id="panelHandle" type="button" aria-label="Toggle controls">❮</button>
 
-  <div id="touchpad" aria-hidden="true">
-    <div class="dpad">
-      <button class="touchBtn up" data-key="ArrowUp">▲</button>
-      <button class="touchBtn left" data-key="ArrowLeft">◀</button>
-      <button class="touchBtn right" data-key="ArrowRight">▶</button>
-      <button class="touchBtn down" data-key="ArrowDown">▼</button>
-    </div>
-    <div class="fxpad">
-      <button class="fx" data-key="KeyG">G</button>
-      <button class="fx" data-key="KeyH">H</button>
-      <button class="fx" data-key="KeyJ">J</button>
-      <button class="fx" data-key="KeyK">K</button>
-      <button class="fx brake" data-key="Space">Brake</button>
-    </div>
-  </div>
 </div>
 <canvas id="impactLayer" aria-hidden="true"></canvas>
 
@@ -517,6 +467,22 @@
   const keys = new Set();
   const stars = [];
   const veils = [];
+
+  const controlActivity = {
+    idleTimer: null,
+    lastInteraction: performance.now()
+  };
+
+  const swipeControl = {
+    active: false,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    currentY: 0,
+    steerX: 0,
+    steerY: 0
+  };
 
   const portraitKey = {
     speed: 1.33,
@@ -1653,6 +1619,57 @@
   syncStars();
   syncVeils();
 
+  function isMobileLike() {
+    return matchMedia("(pointer: coarse)").matches ||
+      Math.min(innerWidth, innerHeight) < 900;
+  }
+
+  function showControlsFromActivity() {
+    document.body.classList.remove("controls-idle");
+    document.body.classList.add("controls-active");
+    document.body.classList.remove("ui-hidden");
+    controlActivity.lastInteraction = performance.now();
+
+    clearTimeout(controlActivity.idleTimer);
+    controlActivity.idleTimer = setTimeout(() => {
+      document.body.classList.remove("controls-active");
+      document.body.classList.add("controls-idle");
+      document.body.classList.add("ui-hidden");
+
+      if (isMobileLike()) {
+        try { window.scrollTo({ top: 1, behavior: "smooth" }); }
+        catch (error) { window.scrollTo(0, 1); }
+      }
+    }, isMobileLike() ? 3200 : 4800);
+  }
+
+  async function tryGestureFullscreen() {
+    if (!isMobileLike() || document.fullscreenElement) return;
+    const target = document.documentElement;
+    try {
+      if (target.requestFullscreen) {
+        await target.requestFullscreen({ navigationUI: "hide" });
+      } else if (target.webkitRequestFullscreen) {
+        target.webkitRequestFullscreen();
+      }
+    } catch (error) {
+      // iPhone Safari generally allows fullscreen only for installed web apps.
+    }
+  }
+
+  function updateSwipeSteering(dt) {
+    if (swipeControl.active) {
+      const dx = swipeControl.currentX - swipeControl.startX;
+      const dy = swipeControl.currentY - swipeControl.startY;
+      const scale = Math.max(70, Math.min(innerWidth, innerHeight) * 0.22);
+      swipeControl.steerX = clamp(dx / scale, -1, 1);
+      swipeControl.steerY = clamp(dy / scale, -1, 1);
+    } else {
+      swipeControl.steerX = damp(swipeControl.steerX, 0, 4.2, dt);
+      swipeControl.steerY = damp(swipeControl.steerY, 0, 4.2, dt);
+    }
+  }
+
   function setKey(code, down) {
     if (down) keys.add(code);
     else keys.delete(code);
@@ -1676,6 +1693,8 @@
   }
 
   addEventListener("keydown", event => {
+    showControlsFromActivity();
+
     const editing =
       event.target &&
       ["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName);
@@ -1701,24 +1720,52 @@
     }
   });
 
-  addEventListener("keyup", event => setKey(event.code, false));
+  addEventListener("keyup", event => {
+    setKey(event.code, false);
+    showControlsFromActivity();
+  });
   addEventListener("blur", () => keys.clear());
 
-  document.querySelectorAll("[data-key]").forEach(button => {
-    const code = button.dataset.key;
-    const press = event => {
-      event.preventDefault();
-      setKey(code, true);
-      button.setPointerCapture?.(event.pointerId);
-    };
-    const release = event => {
-      event.preventDefault();
-      setKey(code, false);
-    };
-    button.addEventListener("pointerdown", press);
-    button.addEventListener("pointerup", release);
-    button.addEventListener("pointercancel", release);
-    button.addEventListener("pointerleave", release);
+  canvas.addEventListener("pointerdown", event => {
+    showControlsFromActivity();
+    if (!isMobileLike()) return;
+
+    swipeControl.active = true;
+    swipeControl.pointerId = event.pointerId;
+    swipeControl.startX = event.clientX;
+    swipeControl.startY = event.clientY;
+    swipeControl.currentX = event.clientX;
+    swipeControl.currentY = event.clientY;
+    canvas.setPointerCapture?.(event.pointerId);
+
+    tryGestureFullscreen();
+  }, { passive: true });
+
+  canvas.addEventListener("pointermove", event => {
+    if (!swipeControl.active) return;
+    if (swipeControl.pointerId !== null && event.pointerId !== swipeControl.pointerId) return;
+    swipeControl.currentX = event.clientX;
+    swipeControl.currentY = event.clientY;
+    showControlsFromActivity();
+  }, { passive: true });
+
+  function endSwipe(event) {
+    if (swipeControl.pointerId !== null && event.pointerId !== swipeControl.pointerId) return;
+    swipeControl.active = false;
+    swipeControl.pointerId = null;
+    showControlsFromActivity();
+  }
+
+  canvas.addEventListener("pointerup", endSwipe, { passive: true });
+  canvas.addEventListener("pointercancel", endSwipe, { passive: true });
+
+  addEventListener("mousemove", showControlsFromActivity, { passive: true });
+  addEventListener("mousedown", showControlsFromActivity, { passive: true });
+  addEventListener("touchstart", showControlsFromActivity, { passive: true });
+  addEventListener("wheel", showControlsFromActivity, { passive: true });
+  addEventListener("focus", showControlsFromActivity);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) showControlsFromActivity();
   });
 
   function toast(msg) {
@@ -2018,13 +2065,20 @@
   }
 
   hideBtn.addEventListener("click", () => toggleUI(true));
-  panelHandle.addEventListener("click", () => toggleUI());
+  panelHandle.addEventListener("click", () => { showControlsFromActivity(); toggleUI(); });
   toggleUI(false);
 
   refreshPresetList();
   loadSession();
   starSurfBtn.textContent = "Star Surf: Off";
   loadMusicPlaylist();
+  document.body.classList.add("controls-active");
+  showControlsFromActivity();
+  if (isMobileLike()) {
+    setTimeout(() => {
+      try { window.scrollTo(0, 1); } catch (error) {}
+    }, 450);
+  }
 
   function rotatePoint(x, y, angle) {
     const c = Math.cos(angle);
@@ -2084,8 +2138,15 @@
     elapsed += dt;
     analyseMusic(dt);
 
+    updateSwipeSteering(dt);
+
     let inputX = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0);
     let inputY = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
+
+    if (isMobileLike() && swipeControl.active) {
+      inputX = swipeControl.steerX;
+      inputY = swipeControl.steerY;
+    }
 
     if (starSurf.active) {
       inputX = clamp(
@@ -2103,6 +2164,11 @@
         -1,
         1
       );
+
+      if (isMobileLike() && swipeControl.active) {
+        inputX = swipeControl.steerX;
+        inputY = swipeControl.steerY;
+      }
 
       // Velocity eases especially slowly. Other style controls may complete
       // their transition within a bar without twitching on individual beats.
