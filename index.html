@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Prismatic Transit">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Prismatic Transit v19</title>
+<title>Prismatic Transit v20</title>
 <style>
   :root {
     color-scheme: dark;
@@ -255,7 +255,7 @@
 </style>
 </head>
 <body>
-<audio id="starSurfAudio" preload="auto" hidden></audio>
+<audio id="starSurfAudio" preload="auto" playsinline webkit-playsinline hidden></audio>
 <canvas id="scene"></canvas>
 
 <div id="ui">
@@ -637,7 +637,12 @@
     energyTrend: 0,
     sectionCooldown: 0,
     lastSectionType: "",
-    styleNumber: 0
+    styleNumber: 0,
+
+    directPlaybackMode: false,
+    fallbackBeatIndex: -1,
+    mediaSessionConfigured: false,
+    lastPositionUpdate: 0
   };
 
   const KONAMI_SEQUENCE = [
@@ -1003,19 +1008,185 @@
     }
   }
 
+  function configurePlaybackAudioSession() {
+    try {
+      if ("audioSession" in navigator && navigator.audioSession) {
+        navigator.audioSession.type = "playback";
+      }
+    } catch (error) {}
+  }
+
+  function useDirectBackgroundPlayback() {
+    return isIOSDevice();
+  }
+
+  function updateMediaSessionPosition(force = false) {
+    if (!("mediaSession" in navigator)) return;
+    if (!Number.isFinite(starSurfAudio.duration)) return;
+    if (starSurfAudio.duration <= 0) return;
+
+    const now = performance.now();
+    if (!force && now - music.lastPositionUpdate < 950) return;
+    music.lastPositionUpdate = now;
+
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: starSurfAudio.duration,
+        playbackRate: starSurfAudio.playbackRate || 1,
+        position: clamp(
+          starSurfAudio.currentTime || 0,
+          0,
+          Math.max(0, starSurfAudio.duration - 0.01)
+        )
+      });
+    } catch (error) {}
+  }
+
+  function updateMediaSessionMetadata(track) {
+    if (!("mediaSession" in navigator) || !track) return;
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.name || "Star Surf",
+        artist: "Prismatic Transit",
+        album: "Star Surf",
+        artwork: [
+          {
+            src: new URL("icon-192.png", location.href).href,
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: new URL("icon-512.png", location.href).href,
+            sizes: "512x512",
+            type: "image/png"
+          },
+          {
+            src: new URL("apple-touch-icon.png", location.href).href,
+            sizes: "180x180",
+            type: "image/png"
+          }
+        ]
+      });
+
+      document.title =
+        (track.name || "Star Surf") + " — Prismatic Transit";
+    } catch (error) {}
+  }
+
+  function resumeStarSurfFromMediaControls() {
+    configurePlaybackAudioSession();
+
+    if (!starSurf.active) {
+      starSurf.active = true;
+      starSurfBtn.textContent = "Star Surf: On";
+      music.targetVolume = 0.76;
+      music.pauseWhenSilent = false;
+    }
+
+    starSurfAudio.play().catch(() => {});
+  }
+
+  function configureMediaSession() {
+    if (!("mediaSession" in navigator)) return;
+    if (music.mediaSessionConfigured) return;
+
+    music.mediaSessionConfigured = true;
+
+    const setHandler = (action, handler) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (error) {}
+    };
+
+    setHandler("play", () => {
+      resumeStarSurfFromMediaControls();
+    });
+
+    setHandler("pause", () => {
+      starSurfAudio.pause();
+    });
+
+    setHandler("stop", () => {
+      setStarSurf(false);
+    });
+
+    setHandler("nexttrack", () => {
+      playNextTrack();
+    });
+
+    setHandler("previoustrack", () => {
+      if (!music.playlist.length) return;
+      playTrack(
+        (music.trackIndex - 1 + music.playlist.length) %
+          music.playlist.length,
+        true
+      );
+    });
+
+    setHandler("seekbackward", details => {
+      const offset = details.seekOffset || 10;
+      starSurfAudio.currentTime = Math.max(
+        0,
+        starSurfAudio.currentTime - offset
+      );
+      updateMediaSessionPosition(true);
+    });
+
+    setHandler("seekforward", details => {
+      const offset = details.seekOffset || 10;
+      const duration = Number.isFinite(starSurfAudio.duration)
+        ? starSurfAudio.duration
+        : starSurfAudio.currentTime + offset;
+
+      starSurfAudio.currentTime = Math.min(
+        duration,
+        starSurfAudio.currentTime + offset
+      );
+      updateMediaSessionPosition(true);
+    });
+
+    setHandler("seekto", details => {
+      if (!Number.isFinite(details.seekTime)) return;
+      starSurfAudio.currentTime = details.seekTime;
+      updateMediaSessionPosition(true);
+    });
+  }
+
   async function ensureMusicReady() {
+    configurePlaybackAudioSession();
+    configureMediaSession();
+
+    music.directPlaybackMode = useDirectBackgroundPlayback();
+
+    if (music.directPlaybackMode) {
+      return;
+    }
+
     if (!music.context) {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
+      const AudioContextClass =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+      if (!AudioContextClass) {
+        music.directPlaybackMode = true;
+        return;
+      }
 
       music.context = new AudioContextClass();
       music.analyser = music.context.createAnalyser();
       music.analyser.fftSize = 1024;
       music.analyser.smoothingTimeConstant = 0.58;
-      music.data = new Uint8Array(music.analyser.frequencyBinCount);
-      music.previousSpectrum = new Uint8Array(music.analyser.frequencyBinCount);
+      music.data = new Uint8Array(
+        music.analyser.frequencyBinCount
+      );
+      music.previousSpectrum = new Uint8Array(
+        music.analyser.frequencyBinCount
+      );
 
-      music.source = music.context.createMediaElementSource(starSurfAudio);
+      music.source =
+        music.context.createMediaElementSource(starSurfAudio);
+
       music.source.connect(music.analyser);
       music.analyser.connect(music.context.destination);
     }
@@ -1037,6 +1208,7 @@
     music.barCount = 0;
     music.phraseCount = 0;
     music.lastDetectedBeatTime = 0;
+    music.fallbackBeatIndex = -1;
 
     if (music.previousSpectrum) {
       music.previousSpectrum.fill(0);
@@ -1057,8 +1229,15 @@
 
     music.currentTrackName = track.name;
     setTrackStatus(
-      "Playing " + (music.trackIndex + 1) + "/" + tracks.length + ": " + track.name
+      "Playing " +
+      (music.trackIndex + 1) + "/" +
+      tracks.length + ": " +
+      track.name
     );
+
+    configurePlaybackAudioSession();
+    configureMediaSession();
+    updateMediaSessionMetadata(track);
 
     const resolved = new URL(track.url, location.href).href;
     if (starSurfAudio.src !== resolved) {
@@ -1099,6 +1278,36 @@
       );
     }
   }
+
+  starSurfAudio.addEventListener("play", () => {
+    configurePlaybackAudioSession();
+
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = "playing";
+    }
+
+    updateMediaSessionPosition(true);
+  });
+
+  starSurfAudio.addEventListener("pause", () => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = "paused";
+    }
+
+    updateMediaSessionPosition(true);
+  });
+
+  starSurfAudio.addEventListener("loadedmetadata", () => {
+    updateMediaSessionPosition(true);
+  });
+
+  starSurfAudio.addEventListener("durationchange", () => {
+    updateMediaSessionPosition(true);
+  });
+
+  starSurfAudio.addEventListener("timeupdate", () => {
+    updateMediaSessionPosition(false);
+  });
 
   starSurfAudio.addEventListener("ended", () => {
     if (starSurf.active) playNextTrack();
@@ -1336,6 +1545,45 @@
     }
   }
 
+  function analyseMusicFallback(dt) {
+    const trackTime = starSurfAudio.currentTime || 0;
+    const beatInterval = music.estimatedBeatInterval || 0.418;
+    const beatIndex = Math.floor(trackTime / beatInterval);
+
+    const slowWave = 0.5 + Math.sin(trackTime * 0.17) * 0.22;
+    const midWave = 0.5 + Math.sin(trackTime * 0.31 + 1.2) * 0.20;
+    const highWave = 0.5 + Math.sin(trackTime * 0.47 + 2.1) * 0.18;
+
+    music.low = damp(music.low, clamp(slowWave, 0, 1), 1.2, dt);
+    music.mid = damp(music.mid, clamp(midWave, 0, 1), 1.2, dt);
+    music.high = damp(music.high, clamp(highWave, 0, 1), 1.2, dt);
+
+    music.energy = damp(
+      music.energy,
+      clamp(
+        music.low * 0.42 +
+        music.mid * 0.40 +
+        music.high * 0.18,
+        0,
+        1
+      ),
+      0.9,
+      dt
+    );
+
+    if (
+      beatIndex !== music.fallbackBeatIndex &&
+      !starSurfAudio.paused
+    ) {
+      music.fallbackBeatIndex = beatIndex;
+      registerMusicBeat(0.18 + music.energy * 0.12, 0.08);
+    }
+
+    music.beatPulse = damp(music.beatPulse, 0, 9.5, dt);
+    music.hitPulse = damp(music.hitPulse, 0, 8.5, dt);
+    music.bassPulse = damp(music.bassPulse, 0, 7.2, dt);
+  }
+
   function analyseMusic(dt) {
     music.volume = damp(
       music.volume,
@@ -1361,7 +1609,14 @@
       return;
     }
 
-    if (!music.analyser || !music.data) return;
+    if (
+      music.directPlaybackMode ||
+      !music.analyser ||
+      !music.data
+    ) {
+      analyseMusicFallback(dt);
+      return;
+    }
 
     music.analyser.getByteFrequencyData(music.data);
 
@@ -1490,10 +1745,14 @@
   }
 
   async function startStarSurfMusic() {
+    configurePlaybackAudioSession();
+    configureMediaSession();
+
     await ensureMusicReady();
     await loadMusicPlaylist();
 
     music.targetVolume = 0.76;
+    starSurfAudio.volume = 0.76;
     music.pauseWhenSilent = false;
 
     await playTrack(music.trackIndex, true);
@@ -1793,7 +2052,21 @@
   addEventListener("wheel", showControlsFromActivity, { passive: true });
   addEventListener("focus", showControlsFromActivity);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) showControlsFromActivity();
+    if (!document.hidden) {
+      showControlsFromActivity();
+      configurePlaybackAudioSession();
+
+      if (
+        starSurf.active &&
+        !starSurfAudio.paused &&
+        music.context &&
+        music.context.state === "suspended"
+      ) {
+        music.context.resume().catch(() => {});
+      }
+
+      updateMediaSessionPosition(true);
+    }
   });
 
   function toast(msg) {
@@ -2100,6 +2373,8 @@
   loadSession();
   starSurfBtn.textContent = "Star Surf: Off";
   loadMusicPlaylist();
+  configurePlaybackAudioSession();
+  configureMediaSession();
   document.body.classList.add("controls-active");
   showControlsFromActivity();
 
