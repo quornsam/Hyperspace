@@ -1,9 +1,9 @@
-PRISMATIC TRANSIT v20
+PRISMATIC TRANSIT v21
 
 UPLOAD
 ------
 
-Replace index.html with this version. Keep these alongside it:
+Replace index.html with the new file. Keep these beside it:
 
 manifest.json
 icon-192.png
@@ -11,31 +11,61 @@ icon-512.png
 apple-touch-icon.png
 cat_sprite_sheet.png
 
-Leave the existing music folder untouched.
+Leave the existing music folder and its tracks unchanged.
 
 
-IPHONE LOCKED-SCREEN AUDIO
---------------------------
+ADAPTIVE PERFORMANCE
+--------------------
 
-v20 uses direct HTML audio playback on iPhone instead of routing the music
-through Web Audio. Web Audio can be suspended when the screen locks.
+v21 keeps all visual effects and controls but changes the hidden rendering
+workload automatically.
 
-The update also:
+The renderer measures real frame time continuously. If a Tesla browser,
+Android device or other slower system cannot sustain smooth animation, it
+reduces the internal canvas resolution in small steps. The canvas still fills
+the whole display and every feature remains available.
 
-- sets the browser audio session to playback
-- publishes the current track as Prismatic Transit
-- supplies Prismatic Transit artwork to Lock Screen and Control Centre
-- adds play, pause, previous, next and seek media controls
-- updates track position and playback state
-- uses a smooth foreground fallback rhythm for Star Surf visuals on iPhone
+When performance has remained strong for several seconds, quality is restored
+gradually.
 
-The current track should continue when the phone locks.
+Adaptive levels:
+100%, 86%, 74%, 62% and 52% internal resolution.
 
-iOS may suspend webpage JavaScript while locked. Because each song is a
-separate file, automatic advancement at the exact end of a track cannot be
-guaranteed on every iOS version. The Lock Screen Next control can be used.
-Guaranteed uninterrupted transitions while locked would require one continuous
-audio file or a proper streaming playlist.
+The app begins at a suitable level based on:
+- screen size
+- device pixel ratio
+- processor core count where available
+- reported device memory where available
+
+It then adjusts using measured performance rather than relying on the device
+name or operating system.
+
+The current internal quality is stored on the page as the
+data-render-quality value for diagnostic inspection, but no extra control or
+status box is shown to the user.
+
+
+OTHER PERFORMANCE CHANGES
+-------------------------
+
+- Canvas requests the browser's desynchronised low-latency mode where supported.
+- Trail history is preserved when internal resolution changes.
+- The large meteor shatter snapshot is no longer kept permanently in memory.
+- The shatter surface is allocated only when the meteor hits and released when
+  the cracked-glass effect ends.
+- Long pauses caused by tab changes, screen locking or browser menus are ignored
+  by the performance monitor.
+
+
+IPHONE AUDIO
+------------
+
+iPhone uses direct HTML audio playback so the current track can continue after
+the phone is locked. Lock Screen and Control Centre receive Prismatic Transit
+track names, artwork and media controls.
+
+Automatic advancement between separate files while locked still depends on
+the iOS version allowing webpage JavaScript to run.
 
 
 IPHONE WEB APP
@@ -47,31 +77,40 @@ IPHONE WEB APP
 4. Enable Open as Web App when shown.
 5. Launch it from the Home Screen icon.
 
-Delete and reinstall the Home Screen icon after this update.
-
 
 CONTROLS
 --------
 
 Desktop:
-Arrow keys steer. Space slows down. G corkscrews. H enables gravity.
-J enables prism. K reverses. N skips track. F requests fullscreen.
-Tab hides or reveals controls.
+- Arrow keys: steer
+- Space: slow down
+- G: corkscrew
+- H: gravity
+- J: prism
+- K: reverse
+- N: next track
+- F: fullscreen where supported
+- Tab: hide or reveal controls
 
 Mobile:
-Swipe to steer. Controls and the edge tab fade after inactivity.
+- Swipe across the starfield to steer
+- Touch activity reveals the controls
+- Toolbar and edge tab fade after inactivity
 
 
 STAR SURF
 ---------
 
-Star Surf is the gold control at the top. It plays every compatible file in
-the music folder in filename order and loops back to the first track.
+Star Surf is the gold control at the top. It plays compatible tracks from the
+music folder in filename order, advances automatically and loops to the first
+track after the last.
 
 
 EASTER EGGS
 -----------
 
-While Star Surf is active, press M E O W for the animated cat.
+MEOW:
+While Star Surf is active, press M E O W.
 
-Press Up Up Down Down Left Right Left Right A B Enter for the meteor impact.
+Konami meteor:
+Press Up Up Down Down Left Right Left Right A B Enter.
