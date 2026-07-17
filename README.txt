@@ -1,9 +1,18 @@
-PRISMATIC TRANSIT v22 — TESLA OPTIMISED
+PRISMATIC TRANSIT v23 — TESLA WEBGL EDITION
+
+IMPORTANT
+---------
+
+v22 has been abandoned. Do not use it.
+
+v23 is rebuilt from v21, the last version before the unsuccessful cached
+Canvas experiment.
+
 
 UPLOAD
 ------
 
-Replace index.html with the new version. Keep these beside it:
+Replace index.html with this version. Keep these beside it:
 
 manifest.json
 icon-192.png
@@ -11,90 +20,89 @@ icon-512.png
 apple-touch-icon.png
 cat_sprite_sheet.png
 
-Leave the music folder and all existing tracks unchanged.
+Leave the music folder and all tracks unchanged.
 
 
-TESLA MODEL 3 OPTIMISATION
---------------------------
+TESLA RENDERER
+--------------
 
-This version recognises Tesla's in-car browser and begins with a rendering
-profile designed for the large 2019 Model 3 display.
+Tesla's browser is Chromium-based and supports WebGL. On a Tesla browser,
+v23 moves the starfield from Canvas 2D to a dedicated WebGL canvas.
 
-No controls, effects, music features or easter eggs have been removed.
+This means:
 
-The optimisations are internal:
+- star streak geometry is submitted to the GPU in one large batch
+- thousands of individual Canvas beginPath/stroke/filter operations are avoided
+- prism streaks are GPU geometry
+- star blur is approximated with a faint GPU halo rather than Canvas blur
+- Phase Echo is added within the same GPU batch
+- Glitch Memory star persistence is handled directly on the WebGL surface
+- the GPU star surface renders at 72% internal resolution and fills the screen
+- no extra canvas is recalculated every third frame
+- no artificial 24 or 30 fps cap is imposed
 
-- Tesla uses a stable 30 fps target rather than repeatedly failing to reach
-  60 fps and producing uneven motion.
-- If the browser still struggles, it can step down to 24 fps.
-- Internal canvas resolution adapts through:
-  100%, 86%, 74%, 62%, 52%, 44% and 36%.
-- Tesla begins at 52% and may recover to 62% when performance allows.
-- The rendered image still fills the complete screen.
-- Large blurred Aurora and veil effects are rendered on a smaller cached
-  surface.
-- Slow effects are recalculated every third rendered frame on Tesla, while
-  remaining smoothly visible between updates.
-- Star blur is applied once to the completed field instead of separately to
-  hundreds or thousands of star strokes.
-- Phase Echo remains available but uses one full-screen echo copy on Tesla
-  instead of three simultaneous full-screen copies.
-- Glitch Memory decay is corrected for the actual frame rate, so its timing
-  remains visually consistent at 30 fps.
-- Meteor shattered-glass memory is still allocated only when needed.
-- Performance monitoring now measures actual rendering work rather than
-  mistaking a deliberate 30 fps cap for poor performance.
+The ordinary Canvas renderer remains intact as a fallback. iPhone, desktop
+browsers and devices where Tesla WebGL cannot initialise continue to use the
+existing v21 rendering path.
 
 
-WHY THIS SHOULD BE FASTER
--------------------------
+CANVAS OVERLAY
+--------------
 
-The heaviest operations were not the star movement calculations alone. They
-were repeated full-screen blur filters and repeated copies of large canvases.
+Canvas 2D remains responsible for effects which are inexpensive or unsuitable
+for the star geometry batch:
 
-v22 substantially reduces those operations while keeping the same visible
-features and user controls.
+- Aurora Current
+- veils
+- gravity overlay
+- portrait easter egg
+- animated MEOW cat
+- meteor and shattered glass
+- vignette and colour washes
+- interface
+
+The overlay is transparent on Tesla and sits above the WebGL starfield.
 
 
-IPHONE AUDIO
-------------
+FUNCTIONALITY
+-------------
 
-iPhone continues to use direct HTML audio playback for lock-screen support,
-with Prismatic Transit track names, artwork and media controls.
+All controls and features remain available:
+
+- Star Surf and sequential music-folder playback
+- swipe and keyboard steering
+- slowdown, corkscrew, gravity, prism and reverse
+- star density, trail, blur, chroma, veils and decay
+- Aurora Current and Phase Echo
+- Glitch Memory
+- MEOW cat
+- Konami meteor
+- iPhone Home Screen and lock-screen media support
+
+
+DIAGNOSTIC
+----------
+
+When the Tesla WebGL renderer starts successfully, the root HTML element has:
+
+data-renderer="tesla-webgl"
+
+If WebGL cannot initialise, it falls back automatically and reports:
+
+data-renderer="canvas2d-fallback"
 
 
 CONTROLS
 --------
 
-Desktop / Tesla:
-- Arrow keys: steer
-- Space: slow down
-- G: corkscrew
-- H: gravity
-- J: prism
-- K: reverse
-- N: next track
-- F: fullscreen where supported
-- Tab: hide or reveal controls
+Arrow keys: steer
+Space: slow down
+G: corkscrew
+H: gravity
+J: prism
+K: reverse
+N: next track
+F: fullscreen where supported
+Tab: hide or reveal controls
 
-Mobile:
-- Swipe to steer
-- Toolbar and edge tab fade after inactivity
-
-
-STAR SURF
----------
-
-Star Surf is the gold control at the top. It plays compatible music files in
-filename order, advances automatically, and returns to the first track after
-the final one.
-
-
-EASTER EGGS
------------
-
-MEOW:
-While Star Surf is active, press M E O W.
-
-Konami meteor:
-Press Up Up Down Down Left Right Left Right A B Enter.
+Mobile: swipe to steer.
