@@ -1,9 +1,9 @@
-PRISMATIC TRANSIT v21
+PRISMATIC TRANSIT v22 — TESLA OPTIMISED
 
 UPLOAD
 ------
 
-Replace index.html with the new file. Keep these beside it:
+Replace index.html with the new version. Keep these beside it:
 
 manifest.json
 icon-192.png
@@ -11,77 +11,62 @@ icon-512.png
 apple-touch-icon.png
 cat_sprite_sheet.png
 
-Leave the existing music folder and its tracks unchanged.
+Leave the music folder and all existing tracks unchanged.
 
 
-ADAPTIVE PERFORMANCE
---------------------
+TESLA MODEL 3 OPTIMISATION
+--------------------------
 
-v21 keeps all visual effects and controls but changes the hidden rendering
-workload automatically.
+This version recognises Tesla's in-car browser and begins with a rendering
+profile designed for the large 2019 Model 3 display.
 
-The renderer measures real frame time continuously. If a Tesla browser,
-Android device or other slower system cannot sustain smooth animation, it
-reduces the internal canvas resolution in small steps. The canvas still fills
-the whole display and every feature remains available.
+No controls, effects, music features or easter eggs have been removed.
 
-When performance has remained strong for several seconds, quality is restored
-gradually.
+The optimisations are internal:
 
-Adaptive levels:
-100%, 86%, 74%, 62% and 52% internal resolution.
+- Tesla uses a stable 30 fps target rather than repeatedly failing to reach
+  60 fps and producing uneven motion.
+- If the browser still struggles, it can step down to 24 fps.
+- Internal canvas resolution adapts through:
+  100%, 86%, 74%, 62%, 52%, 44% and 36%.
+- Tesla begins at 52% and may recover to 62% when performance allows.
+- The rendered image still fills the complete screen.
+- Large blurred Aurora and veil effects are rendered on a smaller cached
+  surface.
+- Slow effects are recalculated every third rendered frame on Tesla, while
+  remaining smoothly visible between updates.
+- Star blur is applied once to the completed field instead of separately to
+  hundreds or thousands of star strokes.
+- Phase Echo remains available but uses one full-screen echo copy on Tesla
+  instead of three simultaneous full-screen copies.
+- Glitch Memory decay is corrected for the actual frame rate, so its timing
+  remains visually consistent at 30 fps.
+- Meteor shattered-glass memory is still allocated only when needed.
+- Performance monitoring now measures actual rendering work rather than
+  mistaking a deliberate 30 fps cap for poor performance.
 
-The app begins at a suitable level based on:
-- screen size
-- device pixel ratio
-- processor core count where available
-- reported device memory where available
 
-It then adjusts using measured performance rather than relying on the device
-name or operating system.
-
-The current internal quality is stored on the page as the
-data-render-quality value for diagnostic inspection, but no extra control or
-status box is shown to the user.
-
-
-OTHER PERFORMANCE CHANGES
+WHY THIS SHOULD BE FASTER
 -------------------------
 
-- Canvas requests the browser's desynchronised low-latency mode where supported.
-- Trail history is preserved when internal resolution changes.
-- The large meteor shatter snapshot is no longer kept permanently in memory.
-- The shatter surface is allocated only when the meteor hits and released when
-  the cracked-glass effect ends.
-- Long pauses caused by tab changes, screen locking or browser menus are ignored
-  by the performance monitor.
+The heaviest operations were not the star movement calculations alone. They
+were repeated full-screen blur filters and repeated copies of large canvases.
+
+v22 substantially reduces those operations while keeping the same visible
+features and user controls.
 
 
 IPHONE AUDIO
 ------------
 
-iPhone uses direct HTML audio playback so the current track can continue after
-the phone is locked. Lock Screen and Control Centre receive Prismatic Transit
-track names, artwork and media controls.
-
-Automatic advancement between separate files while locked still depends on
-the iOS version allowing webpage JavaScript to run.
-
-
-IPHONE WEB APP
---------------
-
-1. Open the live site in Safari.
-2. Tap Share.
-3. Tap Add to Home Screen.
-4. Enable Open as Web App when shown.
-5. Launch it from the Home Screen icon.
+iPhone continues to use direct HTML audio playback for lock-screen support,
+with Prismatic Transit track names, artwork and media controls.
 
 
 CONTROLS
 --------
 
-Desktop:
+Desktop / Tesla:
 - Arrow keys: steer
 - Space: slow down
 - G: corkscrew
@@ -93,17 +78,16 @@ Desktop:
 - Tab: hide or reveal controls
 
 Mobile:
-- Swipe across the starfield to steer
-- Touch activity reveals the controls
+- Swipe to steer
 - Toolbar and edge tab fade after inactivity
 
 
 STAR SURF
 ---------
 
-Star Surf is the gold control at the top. It plays compatible tracks from the
-music folder in filename order, advances automatically and loops to the first
-track after the last.
+Star Surf is the gold control at the top. It plays compatible music files in
+filename order, advances automatically, and returns to the first track after
+the final one.
 
 
 EASTER EGGS

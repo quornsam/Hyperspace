@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Prismatic Transit">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Prismatic Transit v21</title>
+<title>Prismatic Transit v22</title>
 <style>
   :root {
     color-scheme: dark;
@@ -445,6 +445,14 @@
   const trailCanvas = document.createElement("canvas");
   const trailCtx = trailCanvas.getContext("2d", { alpha: true, desynchronized: true });
 
+  // Veils and Aurora are expensive because they use large live blur filters.
+  // They are rendered on a smaller cached surface and then scaled up.
+  const slowFxCanvas = document.createElement("canvas");
+  const slowFxCtx = slowFxCanvas.getContext("2d", {
+    alpha: true,
+    desynchronized: true
+  });
+
   const ui = document.getElementById("ui");
   const panelHandle = document.getElementById("panelHandle");
   const velocityBar = document.getElementById("velocityBar");
@@ -472,14 +480,19 @@
   let saveMessageTimer = null;
 
   const adaptiveRenderer = {
-    qualitySteps: [1.00, 0.86, 0.74, 0.62, 0.52],
+    qualitySteps: [1.00, 0.86, 0.74, 0.62, 0.52, 0.44, 0.36],
     qualityIndex: 0,
     initialised: false,
-    emaFrameMs: 16.7,
+    emaFrameMs: 8,
     slowSeconds: 0,
     fastSeconds: 0,
     lastQualityChange: 0,
-    frameSamples: 0
+    frameSamples: 0,
+    renderFrame: 0,
+    lastRenderedAt: performance.now(),
+    lastSlowFxFrame: -999,
+    isTeslaBrowser: /Tesla/i.test(navigator.userAgent),
+    lastRenderDt: 1 / 60
   };
 
   const keys = new Set();
@@ -1829,13 +1842,18 @@
 
     let index = 0;
 
-    if (fullPixels > 5_200_000) {
+    if (adaptiveRenderer.isTeslaBrowser) {
+      // The 2019 Model 3 browser has a large display but a relatively
+      // constrained Chromium/Canvas graphics path.
+      index = 4;
+    } else if (fullPixels > 5_200_000) {
       index = 2;
     } else if (fullPixels > 2_700_000) {
       index = 1;
     }
 
     if (
+      !adaptiveRenderer.isTeslaBrowser &&
       (cores <= 4 || memory <= 4) &&
       fullPixels > 1_900_000
     ) {
@@ -1873,7 +1891,7 @@
     const baseDpr = Math.min(devicePixelRatio || 1, 2);
     const renderScale = currentRenderScale();
 
-    dpr = Math.max(0.5, baseDpr * renderScale);
+    dpr = Math.max(0.34, baseDpr * renderScale);
 
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
@@ -1886,6 +1904,34 @@
     trailCanvas.height = Math.max(1, Math.round(height * dpr));
     trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     trailCtx.imageSmoothingEnabled = true;
+
+    const slowFxScale = adaptiveRenderer.isTeslaBrowser
+      ? 0.40
+      : adaptiveRenderer.qualityIndex >= 3
+        ? 0.46
+        : 0.58;
+
+    const slowFxDpr = Math.max(0.24, dpr * slowFxScale);
+
+    slowFxCanvas.width = Math.max(
+      1,
+      Math.round(width * slowFxDpr)
+    );
+    slowFxCanvas.height = Math.max(
+      1,
+      Math.round(height * slowFxDpr)
+    );
+    slowFxCtx.setTransform(
+      slowFxDpr,
+      0,
+      0,
+      slowFxDpr,
+      0,
+      0
+    );
+    slowFxCtx.imageSmoothingEnabled = true;
+    slowFxCtx.clearRect(0, 0, width, height);
+    adaptiveRenderer.lastSlowFxFrame = -999;
 
     if (oldTrail) {
       trailCtx.save();
@@ -1944,29 +1990,83 @@
     resizeCanvases(true);
   }
 
-  function monitorRendererPerformance(frameMs) {
-    if (document.hidden) return;
-    if (!Number.isFinite(frameMs)) return;
+  function targetRenderInterval() {
+    if (adaptiveRenderer.isTeslaBrowser) {
+      return adaptiveRenderer.qualityIndex >= 6
+        ? 1000 / 24
+        : 1000 / 30;
+    }
 
-    // Ignore long pauses caused by changing tabs, locking the device,
-    // opening menus or browser scheduling.
-    if (frameMs <= 0 || frameMs > 160) return;
+    if (adaptiveRenderer.qualityIndex >= 5) {
+      return 1000 / 30;
+    }
+
+    if (adaptiveRenderer.qualityIndex >= 3) {
+      return 1000 / 40;
+    }
+
+    return 1000 / 60;
+  }
+
+  function slowEffectsCadence() {
+    if (adaptiveRenderer.isTeslaBrowser) return 3;
+    if (adaptiveRenderer.qualityIndex >= 5) return 4;
+    if (adaptiveRenderer.qualityIndex >= 3) return 3;
+    if (adaptiveRenderer.qualityIndex >= 1) return 2;
+    return 1;
+  }
+
+  function phaseEchoCopies() {
+    if (adaptiveRenderer.isTeslaBrowser) return 1;
+    if (adaptiveRenderer.qualityIndex >= 5) return 1;
+    if (adaptiveRenderer.qualityIndex >= 2) return 2;
+    return 3;
+  }
+
+  function monitorRendererPerformance(
+    workMs,
+    deliveredFrameMs
+  ) {
+    if (document.hidden) return;
+    if (!Number.isFinite(workMs)) return;
+    if (workMs < 0 || workMs > 160) return;
 
     adaptiveRenderer.frameSamples += 1;
     adaptiveRenderer.emaFrameMs =
-      adaptiveRenderer.emaFrameMs * 0.94 +
-      frameMs * 0.06;
+      adaptiveRenderer.emaFrameMs * 0.92 +
+      workMs * 0.08;
 
-    const seconds = frameMs / 1000;
-    const average = adaptiveRenderer.emaFrameMs;
+    const desired = targetRenderInterval();
+    const workBudget = desired * 0.78;
 
-    if (average > 28) {
+    const workPressure =
+      adaptiveRenderer.emaFrameMs /
+      Math.max(1, workBudget);
+
+    const deliveryPressure =
+      Number.isFinite(deliveredFrameMs) &&
+      deliveredFrameMs < 160
+        ? deliveredFrameMs /
+          Math.max(1, desired * 1.24)
+        : 1;
+
+    const pressure = Math.max(
+      workPressure,
+      deliveryPressure
+    );
+
+    const seconds = Math.max(
+      desired,
+      deliveredFrameMs || desired
+    ) / 1000;
+
+    if (pressure > 1.04) {
       adaptiveRenderer.slowSeconds += seconds;
       adaptiveRenderer.fastSeconds = Math.max(
         0,
         adaptiveRenderer.fastSeconds - seconds * 2
       );
-    } else if (average < 17.4) {
+    } else if (pressure < 0.62) {
       adaptiveRenderer.fastSeconds += seconds;
       adaptiveRenderer.slowSeconds = Math.max(
         0,
@@ -1975,11 +2075,11 @@
     } else {
       adaptiveRenderer.slowSeconds = Math.max(
         0,
-        adaptiveRenderer.slowSeconds - seconds * 0.35
+        adaptiveRenderer.slowSeconds - seconds * 0.30
       );
       adaptiveRenderer.fastSeconds = Math.max(
         0,
-        adaptiveRenderer.fastSeconds - seconds * 0.20
+        adaptiveRenderer.fastSeconds - seconds * 0.18
       );
     }
 
@@ -1988,18 +2088,26 @@
       now - adaptiveRenderer.lastQualityChange;
 
     if (
-      adaptiveRenderer.frameSamples > 45 &&
-      adaptiveRenderer.slowSeconds > 1.8 &&
-      sinceChange > 2800
+      adaptiveRenderer.frameSamples > 24 &&
+      adaptiveRenderer.slowSeconds > 1.15 &&
+      sinceChange > 1900
     ) {
       changeRenderQuality(1);
       return;
     }
 
+    // Tesla is allowed to recover one step, but not above 62%, because
+    // higher levels recreate the large-display bottleneck.
+    const bestTeslaIndex = 3;
+    const canImprove =
+      !adaptiveRenderer.isTeslaBrowser ||
+      adaptiveRenderer.qualityIndex > bestTeslaIndex;
+
     if (
-      adaptiveRenderer.frameSamples > 180 &&
-      adaptiveRenderer.fastSeconds > 9.5 &&
-      sinceChange > 8500
+      canImprove &&
+      adaptiveRenderer.frameSamples > 160 &&
+      adaptiveRenderer.fastSeconds > 12 &&
+      sinceChange > 11000
     ) {
       changeRenderQuality(-1);
     }
@@ -2880,10 +2988,27 @@
         mappedFade +
         (1 - strength) * 0.010;
 
+      const sixtyFpsAlpha = clamp(
+        naturalFade,
+        0.008,
+        0.145
+      );
+
+      const timeCorrectedAlpha =
+        1 -
+        Math.pow(
+          1 - sixtyFpsAlpha,
+          clamp(
+            adaptiveRenderer.lastRenderDt * 60,
+            0.4,
+            3.2
+          )
+        );
+
       trailCtx.save();
       trailCtx.globalCompositeOperation = "source-over";
       trailCtx.fillStyle =
-        `rgba(0,0,0,${clamp(naturalFade, 0.008, 0.145)})`;
+        `rgba(0,0,0,${timeCorrectedAlpha})`;
       trailCtx.fillRect(0, 0, width, height);
       trailCtx.restore();
     } else {
@@ -2991,8 +3116,10 @@
     ctx.save();
     ctx.globalCompositeOperation = "screen";
 
-    for (let i = 1; i <= 3; i++) {
-      const amount = i / 3;
+    const copies = phaseEchoCopies();
+
+    for (let i = 1; i <= copies; i++) {
+      const amount = i / copies;
       const scale = 1 + amount * 0.018 * strength;
       const angle =
         Math.sin(elapsed * 0.31 + i) *
@@ -3022,6 +3149,48 @@
     ctx.restore();
   }
 
+  function updateSlowEffects(cx, cy) {
+    const cadence = slowEffectsCadence();
+
+    if (
+      adaptiveRenderer.renderFrame -
+        adaptiveRenderer.lastSlowFxFrame <
+      cadence
+    ) {
+      return;
+    }
+
+    adaptiveRenderer.lastSlowFxFrame =
+      adaptiveRenderer.renderFrame;
+
+    slowFxCtx.clearRect(0, 0, width, height);
+    drawVeils(slowFxCtx, cx, cy);
+    drawAuroraCurrent(slowFxCtx);
+  }
+
+  function compositeSlowEffects() {
+    if (
+      state.aurora < 0.01 &&
+      (
+        state.chromaFactor * settings.chroma < 0.02 ||
+        settings.veils <= 0.001
+      )
+    ) {
+      return;
+    }
+
+    trailCtx.save();
+    trailCtx.globalCompositeOperation = "lighter";
+    trailCtx.drawImage(
+      slowFxCanvas,
+      0,
+      0,
+      width,
+      height
+    );
+    trailCtx.restore();
+  }
+
   function strokeTrail(g, head, mid, tail, style, lineWidth) {
     g.beginPath();
     g.moveTo(tail.x, tail.y);
@@ -3035,10 +3204,6 @@
     g.save();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
-
-    if (settings.blur > 0.01) {
-      g.filter = `blur(${settings.blur.toFixed(2)}px)`;
-    }
 
     const speedVisual = Math.max(.1, state.effectiveSpeed);
     const trailDepth = (4 + speedVisual * 88) * settings.trail;
@@ -4058,6 +4223,12 @@
     ctx.globalAlpha =
       (1 - state.portraitReveal * 0.48) *
       (1 - darkMix * 0.82);
+
+    if (settings.blur > 0.01) {
+      ctx.filter =
+        `blur(${settings.blur.toFixed(2)}px)`;
+    }
+
     ctx.drawImage(trailCanvas, 0, 0, width, height);
     ctx.restore();
 
@@ -4067,7 +4238,10 @@
       ctx.globalAlpha =
         darkMix *
         (0.62 + state.memoryStrength * 0.24);
-      ctx.filter = "brightness(0)";
+      ctx.filter =
+        settings.blur > 0.01
+          ? `brightness(0) blur(${settings.blur.toFixed(2)}px)`
+          : "brightness(0)";
       ctx.drawImage(trailCanvas, 0, 0, width, height);
       ctx.restore();
     }
@@ -4091,8 +4265,10 @@
 
     drawBackground(centre.x, centre.y);
     prepareTrailLayer();
-    drawVeils(trailCtx, centre.x, centre.y);
-    drawAuroraCurrent(trailCtx);
+
+    updateSlowEffects(centre.x, centre.y);
+    compositeSlowEffects();
+
     drawStars(trailCtx, centre.x, centre.y);
     drawGravityOverlay(trailCtx, centre.x, centre.y);
     protectTrailCentre(centre.x, centre.y);
@@ -4112,13 +4288,38 @@
   }
 
   function frame(now) {
-    const rawFrameMs = now - last || 16.7;
-    const dt = Math.min(.033, rawFrameMs / 1000);
+    const desiredInterval = targetRenderInterval();
+    const deliveredFrameMs =
+      now - adaptiveRenderer.lastRenderedAt;
+
+    if (deliveredFrameMs < desiredInterval - 1) {
+      requestAnimationFrame(frame);
+      return;
+    }
+
+    adaptiveRenderer.lastRenderedAt = now;
+    adaptiveRenderer.renderFrame += 1;
+
+    const dt = Math.min(
+      0.055,
+      Math.max(0.001, deliveredFrameMs / 1000)
+    );
+
+    adaptiveRenderer.lastRenderDt = dt;
     last = now;
 
-    monitorRendererPerformance(rawFrameMs);
+    const workStarted = performance.now();
+
     update(dt);
     render();
+
+    const workMs =
+      performance.now() - workStarted;
+
+    monitorRendererPerformance(
+      workMs,
+      deliveredFrameMs
+    );
 
     requestAnimationFrame(frame);
   }
