@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Prismatic Transit">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Prismatic Transit v25</title>
+<title>Prismatic Transit v26</title>
 <style>
   :root {
     color-scheme: dark;
@@ -270,50 +270,26 @@
   }
   #touchpad { display: none !important; }
 
-  /* v25: definitive render/UI stacking order */
-  #gpuScene,
-  #scene,
-  #impactLayer {
-    position: fixed !important;
-    inset: 0 !important;
+  /* v26: stable renderer and control-panel layering */
+  #gpuScene, #scene, #impactLayer { position: fixed !important; inset: 0 !important; }
+  #gpuScene { display: none !important; z-index: 0 !important; pointer-events: none !important; }
+  html[data-renderer="tesla-instanced-webgl"] #gpuScene { display: block !important; }
+  #scene { z-index: 1 !important; }
+  #impactLayer { z-index: 10 !important; pointer-events: none !important; }
+  #ui { position: fixed !important; inset: 0 !important; z-index: 100 !important; display: block !important; visibility: visible !important; pointer-events: none !important; }
+  #sidebar { z-index: 101 !important; visibility: visible !important; pointer-events: auto !important; }
+  #panelHandle { z-index: 102 !important; visibility: visible !important; pointer-events: auto !important; }
+  @media (min-width: 700px) {
+    body.controls-idle #sidebar, body.controls-idle #panelHandle { opacity: 1 !important; pointer-events: auto !important; }
+    body.controls-idle #panelHandle { transform: translateY(-50%) !important; }
   }
-
-  #gpuScene {
-    z-index: 0 !important;
-    pointer-events: none !important;
+  @media (max-width: 699px) {
+    body.controls-idle #panelHandle { opacity: .46 !important; pointer-events: auto !important; transform: translateY(-50%) !important; }
   }
-
-  #scene {
-    z-index: 1 !important;
-  }
-
-  #impactLayer {
-    z-index: 10 !important;
-    pointer-events: none !important;
-  }
-
-  #ui {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 100 !important;
-    pointer-events: none !important;
-    isolation: isolate;
-  }
-
-  #ui button,
-  #ui input,
-  #ui select,
-  #ui textarea,
-  #ui label,
-  #ui a,
-  #ui [role="button"],
-  #ui .panel,
-  #ui .toolbar,
-  #ui .control-panel,
-  #ui .edge-tab,
-  #ui .music-panel,
-  #ui .preset-panel {
-    pointer-events: auto !important;
+  html[data-renderer="tesla-instanced-webgl"] #sidebar,
+  html[data-renderer="tesla-instanced-webgl"] #panelHandle {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
 </style>
@@ -323,6 +299,7 @@
 <canvas id="gpuScene" aria-hidden="true"></canvas>
 <canvas id="scene"></canvas>
 
+<canvas id="impactLayer" aria-hidden="true"></canvas>
 <div id="ui">
   <aside id="sidebar">
     <div>
@@ -492,7 +469,6 @@
   <button id="panelHandle" type="button" aria-label="Toggle controls">❮</button>
 
 </div>
-<canvas id="impactLayer" aria-hidden="true"></canvas>
 
 <script>
 (() => {
@@ -1916,51 +1892,6 @@
   }
 
 
-
-  function restoreInterfaceLayering() {
-    const gpu = document.getElementById("gpuScene");
-    const scene = document.getElementById("scene");
-    const impact = document.getElementById("impactLayer");
-    const uiRoot = document.getElementById("ui");
-
-    if (gpu) {
-      gpu.style.position = "fixed";
-      gpu.style.inset = "0";
-      gpu.style.zIndex = "0";
-      gpu.style.pointerEvents = "none";
-    }
-
-    if (scene) {
-      scene.style.position = "fixed";
-      scene.style.inset = "0";
-      scene.style.zIndex = "1";
-    }
-
-    if (impact) {
-      impact.style.position = "fixed";
-      impact.style.inset = "0";
-      impact.style.zIndex = "10";
-      impact.style.pointerEvents = "none";
-    }
-
-    if (!uiRoot) return;
-
-    uiRoot.style.position = "fixed";
-    uiRoot.style.inset = "0";
-    uiRoot.style.zIndex = "100";
-    uiRoot.style.pointerEvents = "none";
-    uiRoot.style.isolation = "isolate";
-
-    const interactive = uiRoot.querySelectorAll(
-      "button,input,select,textarea,label,a,[role='button']," +
-      ".panel,.toolbar,.control-panel,.edge-tab,.music-panel,.preset-panel"
-    );
-
-    for (const element of interactive) {
-      element.style.pointerEvents = "auto";
-    }
-  }
-
   function gpuShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -2865,7 +2796,6 @@
     }
 
     resizeCanvases(true);
-    restoreInterfaceLayering();
   }
 
   function changeRenderQuality(direction) {
@@ -2965,7 +2895,14 @@
     }
   }
 
-  addEventListener("resize", resize, { passive: true });
+  addEventListener("resize", () => {
+    resize();
+    if (!shouldAutoHideControls()) {
+      clearTimeout(controlActivity.idleTimer);
+      document.body.classList.remove("controls-idle", "ui-hidden");
+      document.body.classList.add("controls-active");
+    }
+  }, { passive: true });
   resize();
 
   function syncStars() {
@@ -3028,6 +2965,10 @@
       navigator.standalone === true;
   }
 
+  function shouldAutoHideControls() {
+    return Math.min(innerWidth, innerHeight) < 700;
+  }
+
   function showControlsFromActivity() {
     document.body.classList.remove("controls-idle");
     document.body.classList.add("controls-active");
@@ -3035,6 +2976,10 @@
     controlActivity.lastInteraction = performance.now();
 
     clearTimeout(controlActivity.idleTimer);
+
+    // Desktop Opera and the Tesla display keep controls available.
+    if (!shouldAutoHideControls()) return;
+
     controlActivity.idleTimer = setTimeout(() => {
       document.body.classList.remove("controls-active");
       document.body.classList.add("controls-idle");
@@ -3044,7 +2989,7 @@
         try { window.scrollTo({ top: 1, behavior: "smooth" }); }
         catch (error) { window.scrollTo(0, 1); }
       }
-    }, isMobileLike() ? 3200 : 4800);
+    }, 4800);
   }
 
   async function tryGestureFullscreen() {
@@ -3482,11 +3427,29 @@
     resize();
   });
 
+  function updateControlDiagnostics() {
+    const sidebarBox = sidebar.getBoundingClientRect();
+    const sidebarStyle = getComputedStyle(sidebar);
+    window.__prismaticControlDiagnostics = {
+      renderer: document.documentElement.dataset.renderer || "canvas2d",
+      bodyClasses: document.body.className,
+      collapsed: ui.classList.contains("collapsed"),
+      sidebarOpacity: sidebarStyle.opacity,
+      sidebarVisibility: sidebarStyle.visibility,
+      sidebarDisplay: sidebarStyle.display,
+      sidebarZIndex: sidebarStyle.zIndex,
+      sidebarWidth: Math.round(sidebarBox.width),
+      sidebarHeight: Math.round(sidebarBox.height),
+      autoHideEnabled: shouldAutoHideControls()
+    };
+  }
+
   function toggleUI(force) {
     const collapsed = force !== undefined ? force : !ui.classList.contains("collapsed");
     ui.classList.toggle("collapsed", collapsed);
     document.body.classList.toggle("ui-hidden", collapsed);
     panelHandle.textContent = collapsed ? "❯" : "❮";
+    requestAnimationFrame(updateControlDiagnostics);
   }
 
   hideBtn.addEventListener("click", () => toggleUI(true));
@@ -3499,8 +3462,10 @@
   loadMusicPlaylist();
   configurePlaybackAudioSession();
   configureMediaSession();
+  document.body.classList.remove("controls-idle", "ui-hidden");
   document.body.classList.add("controls-active");
   showControlsFromActivity();
+  updateControlDiagnostics();
 
   if (isMobileLike()) {
     setTimeout(() => {
@@ -5107,11 +5072,6 @@
 
   requestAnimationFrame(frame);
 })();
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", restoreInterfaceLayering);
-  } else {
-    restoreInterfaceLayering();
-  }
 </script>
 </body>
 </html>
