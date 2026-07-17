@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Prismatic Transit">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Prismatic Transit v24</title>
+<title>Prismatic Transit v25</title>
 <style>
   :root {
     color-scheme: dark;
@@ -269,6 +269,53 @@
     color: rgba(255,255,255,.86);
   }
   #touchpad { display: none !important; }
+
+  /* v25: definitive render/UI stacking order */
+  #gpuScene,
+  #scene,
+  #impactLayer {
+    position: fixed !important;
+    inset: 0 !important;
+  }
+
+  #gpuScene {
+    z-index: 0 !important;
+    pointer-events: none !important;
+  }
+
+  #scene {
+    z-index: 1 !important;
+  }
+
+  #impactLayer {
+    z-index: 10 !important;
+    pointer-events: none !important;
+  }
+
+  #ui {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100 !important;
+    pointer-events: none !important;
+    isolation: isolate;
+  }
+
+  #ui button,
+  #ui input,
+  #ui select,
+  #ui textarea,
+  #ui label,
+  #ui a,
+  #ui [role="button"],
+  #ui .panel,
+  #ui .toolbar,
+  #ui .control-panel,
+  #ui .edge-tab,
+  #ui .music-panel,
+  #ui .preset-panel {
+    pointer-events: auto !important;
+  }
+
 </style>
 </head>
 <body>
@@ -1869,6 +1916,51 @@
   }
 
 
+
+  function restoreInterfaceLayering() {
+    const gpu = document.getElementById("gpuScene");
+    const scene = document.getElementById("scene");
+    const impact = document.getElementById("impactLayer");
+    const uiRoot = document.getElementById("ui");
+
+    if (gpu) {
+      gpu.style.position = "fixed";
+      gpu.style.inset = "0";
+      gpu.style.zIndex = "0";
+      gpu.style.pointerEvents = "none";
+    }
+
+    if (scene) {
+      scene.style.position = "fixed";
+      scene.style.inset = "0";
+      scene.style.zIndex = "1";
+    }
+
+    if (impact) {
+      impact.style.position = "fixed";
+      impact.style.inset = "0";
+      impact.style.zIndex = "10";
+      impact.style.pointerEvents = "none";
+    }
+
+    if (!uiRoot) return;
+
+    uiRoot.style.position = "fixed";
+    uiRoot.style.inset = "0";
+    uiRoot.style.zIndex = "100";
+    uiRoot.style.pointerEvents = "none";
+    uiRoot.style.isolation = "isolate";
+
+    const interactive = uiRoot.querySelectorAll(
+      "button,input,select,textarea,label,a,[role='button']," +
+      ".panel,.toolbar,.control-panel,.edge-tab,.music-panel,.preset-panel"
+    );
+
+    for (const element of interactive) {
+      element.style.pointerEvents = "auto";
+    }
+  }
+
   function gpuShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -2773,6 +2865,7 @@
     }
 
     resizeCanvases(true);
+    restoreInterfaceLayering();
   }
 
   function changeRenderQuality(direction) {
@@ -5014,6 +5107,11 @@
 
   requestAnimationFrame(frame);
 })();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restoreInterfaceLayering);
+  } else {
+    restoreInterfaceLayering();
+  }
 </script>
 </body>
 </html>

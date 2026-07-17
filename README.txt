@@ -1,3 +1,15 @@
+PRISMATIC TRANSIT v25 — GPU UI FIX
+
+v25 keeps the v24 Tesla GPU renderer and fixes a general browser stacking fault which hid Star Surf and the complete option panel behind the rendering canvases. The fault also affected Opera and was not Tesla-specific.
+
+Layer order:
+- GPU scene: 0
+- 2D scene overlay: 1
+- impact layer: 10
+- interface: 100
+
+All controls retain pointer input while empty parts of the interface layer remain transparent to steering gestures.
+
 PRISMATIC TRANSIT v24 — TESLA INSTANCED GPU BUILD
 
 IMPORTANT
